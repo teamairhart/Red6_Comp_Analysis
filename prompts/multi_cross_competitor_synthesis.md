@@ -3,7 +3,7 @@ You are conducting cross-competitor synthesis analysis for defense technology co
 OBJECTIVE: Synthesize individual company research reports into unified competitive landscape assessment for Red 6 strategic planning.
 
 COMPANIES TO SYNTHESIZE:
-- BAE Systems (HMD/training divisions)
+- BAE Systems (HMD/AR/training/simulation divisions)
 - Elbit Systems
 - Thales Group
 - Cubic Corporation

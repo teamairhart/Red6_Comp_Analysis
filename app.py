@@ -221,18 +221,89 @@ def render_sidebar():
         # Prompt selection FIRST (so we can determine if company is needed)
         prompts = st.session_state.engine.get_prompts()
         prompt_names = [p["name"] for p in prompts]
-        prompt_display = [p["name"].replace("_", " ").title() for p in prompts]
 
+        # Display name overrides for cleaner UI
+        display_name_overrides = {
+            # Multi-company prompts
+            "multi_cross_competitor_synthesis": "Cross-Competitor Synthesis",
+            "multi_primary_competitors_matrix": "Primary Competitors Matrix",
+            # Products & Technology
+            "products_and_pipeline": "Products and Development Pipeline",
+            "technology_roadmap": "Technology Roadmap and Evolution",
+            "patents_and_ip": "Patents and Intellectual Property",
+            # People & Organization
+            "executive_movements": "Executive Movements and Talent Flow",
+            "org_structure_and_hiring": "Org Structure and Hiring Trends",
+            # Contracts & Programs
+            "contract_awards": "Recent Contract Awards",
+            "procurement_opportunities": "Government Procurement Opportunities",
+            "program_execution": "Program Execution and Performance",
+            # Strategy & Partnerships
+            "strategic_direction": "Strategic Direction and Investments",
+            "ma_activity": "M&A and Acquisition Activity",
+            "teaming_relationships": "Teaming and Partner Relationships",
+            "rnd_investments": "R&D and New Product Releases",
+        }
+
+        # Define category groupings for single-company prompts
+        category_groups = {
+            "── MULTI-COMPANY ANALYSIS ──": ["multi_cross_competitor_synthesis", "multi_primary_competitors_matrix"],
+            "── PRODUCTS & TECHNOLOGY ──": ["products_and_pipeline", "technology_roadmap", "patents_and_ip"],
+            "── PEOPLE & ORGANIZATION ──": ["executive_movements", "org_structure_and_hiring"],
+            "── CONTRACTS & PROGRAMS ──": ["contract_awards", "procurement_opportunities", "program_execution"],
+            "── STRATEGY & PARTNERSHIPS ──": ["strategic_direction", "ma_activity", "teaming_relationships", "rnd_investments"],
+        }
+
+        # Build ordered list with category headers
+        ordered_prompts = []
+        prompt_lookup = {p["name"]: p for p in prompts}
+
+        for category, prompt_names_in_cat in category_groups.items():
+            # Add category header (non-selectable visual separator)
+            ordered_prompts.append({
+                "name": f"__header__{category}",
+                "display": category,
+                "is_header": True,
+                "is_multi": "MULTI" in category
+            })
+
+            # Add prompts in this category
+            for pname in prompt_names_in_cat:
+                if pname in prompt_lookup:
+                    is_multi = pname.startswith("multi_")
+                    prefix = "🔀 " if is_multi else "    "
+                    ordered_prompts.append({
+                        "name": pname,
+                        "display": f"{prefix}{display_name_overrides.get(pname, pname.replace('_', ' ').title())}",
+                        "is_header": False,
+                        "is_multi": is_multi
+                    })
+
+        # Find first non-header index for default selection
+        default_idx = next((i for i, p in enumerate(ordered_prompts) if not p.get("is_header")), 0)
+
+        # Create selectbox
         selected_prompt_idx = st.selectbox(
             "📝 Select Research Prompt",
-            options=range(len(prompt_names)),
-            format_func=lambda x: prompt_display[x],
-            help="Choose the type of research to conduct"
+            options=range(len(ordered_prompts)),
+            index=default_idx,
+            format_func=lambda x: ordered_prompts[x]["display"],
+            help="Select a research prompt from the categorized list"
         )
-        selected_prompt = prompt_names[selected_prompt_idx]
 
-        # Check if this is the cross-competitor synthesis prompt
-        is_cross_competitor = selected_prompt == "comprehensive_cross_competitor_synthesis"
+        selected_item = ordered_prompts[selected_prompt_idx]
+
+        # If user selected a header, show warning
+        if selected_item.get("is_header"):
+            st.warning("⚠️ Please select a research prompt, not a category header.")
+            selected_prompt = None
+            is_cross_competitor = False
+            is_primary_competitors = False
+        else:
+            selected_prompt = selected_item["name"]
+            # Check if this is a multi-competitor analysis prompt
+            is_cross_competitor = selected_prompt == "multi_cross_competitor_synthesis"
+            is_primary_competitors = selected_prompt == "multi_primary_competitors_matrix"
 
         # Company selection with priority grouping
         companies = st.session_state.engine.get_companies()
@@ -266,6 +337,16 @@ def render_sidebar():
             )
             st.info("📊 This prompt analyzes ALL competitors and synthesizes findings into a unified competitive landscape report.")
             selected_company = "Cross-Competitor-Synthesis"
+        elif is_primary_competitors:
+            # Show disabled placeholder for primary competitors analysis
+            st.selectbox(
+                "🏢 Select Company",
+                options=["Primary Competitors (BAE, Elbit, Thales, Red 6)"],
+                disabled=True,
+                help="Primary competitors analysis compares BAE, Elbit, Thales, and Red 6"
+            )
+            st.info("📊 This prompt compares **BAE Systems**, **Elbit Systems**, **Thales Group**, and **Red 6** across all relevant dimensions including HMD, AR, simulation, and training technologies.")
+            selected_company = "Primary-Competitors-Analysis"
         else:
             selected_company = st.selectbox(
                 "🏢 Select Company",
@@ -327,7 +408,7 @@ def render_sidebar():
         st.markdown("---")
 
         # Run button
-        run_disabled = len(available_providers) == 0
+        run_disabled = len(available_providers) == 0 or selected_prompt is None
 
         if st.button(
             "🚀 Run Research",
@@ -755,17 +836,69 @@ def get_prompts_list():
     prompts_dir = Path(__file__).parent / "prompts"
     prompts = []
 
+    # Display name overrides for cleaner UI
+    display_name_overrides = {
+        # Multi-company prompts
+        "multi_cross_competitor_synthesis": "Cross-Competitor Synthesis",
+        "multi_primary_competitors_matrix": "Primary Competitors Matrix",
+        # Products & Technology
+        "products_and_pipeline": "Products and Development Pipeline",
+        "technology_roadmap": "Technology Roadmap and Evolution",
+        "patents_and_ip": "Patents and Intellectual Property",
+        # People & Organization
+        "executive_movements": "Executive Movements and Talent Flow",
+        "org_structure_and_hiring": "Org Structure and Hiring Trends",
+        # Contracts & Programs
+        "contract_awards": "Recent Contract Awards",
+        "procurement_opportunities": "Government Procurement Opportunities",
+        "program_execution": "Program Execution and Performance",
+        # Strategy & Partnerships
+        "strategic_direction": "Strategic Direction and Investments",
+        "ma_activity": "M&A and Acquisition Activity",
+        "teaming_relationships": "Teaming and Partner Relationships",
+        "rnd_investments": "R&D and New Product Releases",
+    }
+
     if prompts_dir.exists():
-        for prompt_file in sorted(prompts_dir.glob("*.md")):
-            name = prompt_file.stem
-            # Convert filename to display name (e.g., "leadership_team_dynamics" -> "Leadership Team Dynamics")
-            display_name = name.replace("_", " ").title()
+        # Define category groupings
+        category_groups = {
+            "── MULTI-COMPANY ANALYSIS ──": ["multi_cross_competitor_synthesis", "multi_primary_competitors_matrix"],
+            "── PRODUCTS & TECHNOLOGY ──": ["products_and_pipeline", "technology_roadmap", "patents_and_ip"],
+            "── PEOPLE & ORGANIZATION ──": ["executive_movements", "org_structure_and_hiring"],
+            "── CONTRACTS & PROGRAMS ──": ["contract_awards", "procurement_opportunities", "program_execution"],
+            "── STRATEGY & PARTNERSHIPS ──": ["strategic_direction", "ma_activity", "teaming_relationships", "rnd_investments"],
+        }
+
+        # Build lookup from actual files
+        all_prompts = {p.stem: p for p in prompts_dir.glob("*.md")}
+
+        # Build ordered list with categories
+        for category, prompt_names_in_cat in category_groups.items():
+            # Add category header
             prompts.append({
-                "name": name,
-                "display_name": display_name,
-                "filename": prompt_file.name,
-                "path": prompt_file
+                "name": f"__header__{category}",
+                "display_name": category,
+                "filename": None,
+                "path": None,
+                "is_header": True,
+                "is_multi": "MULTI" in category
             })
+
+            # Add prompts in this category
+            for pname in prompt_names_in_cat:
+                if pname in all_prompts:
+                    prompt_file = all_prompts[pname]
+                    is_multi = pname.startswith("multi_")
+                    prefix = "🔀 " if is_multi else "    "
+                    base_display = display_name_overrides.get(pname, pname.replace("_", " ").title())
+                    prompts.append({
+                        "name": pname,
+                        "display_name": f"{prefix}{base_display}",
+                        "filename": prompt_file.name,
+                        "path": prompt_file,
+                        "is_header": False,
+                        "is_multi": is_multi
+                    })
 
     return prompts
 
@@ -778,16 +911,25 @@ def render_prompt_library():
         st.info("No prompts found. Add .md files to the prompts/ directory.")
         return
 
+    # Find first non-header index for default selection
+    default_idx = next((i for i, p in enumerate(prompts) if not p.get("is_header")), 0)
+
     # Prompt selector
     prompt_options = {p["display_name"]: p for p in prompts}
     selected_display_name = st.selectbox(
         "Select a Prompt to View",
         options=list(prompt_options.keys()),
+        index=default_idx,
         key="prompt_library_selector"
     )
 
     if selected_display_name:
         selected_prompt = prompt_options[selected_display_name]
+
+        # Check if header was selected
+        if selected_prompt.get("is_header"):
+            st.info("👆 Select a prompt from the list above to view its content.")
+            return
 
         # Show prompt metadata
         st.markdown(f"**Filename:** `{selected_prompt['filename']}`")

@@ -5,7 +5,7 @@ RESEARCH TARGET: [COMPANY NAME] and all subsidiaries with active contracts in he
 TIME FRAME: Last 36 months (to capture program lifecycle data).
 
 PART 1 - ACTIVE PROGRAM STATUS:
-For each major program in the HMD/AR/training portfolio:
+For each major program in the HMD/AR/simulation/training portfolio:
 
 Required data points:
 - Program name and customer
