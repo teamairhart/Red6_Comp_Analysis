@@ -1,8 +1,15 @@
 """
 Competitive Intelligence Platform - FastAPI Backend
 """
+import sys
+from pathlib import Path
+
+# Add backend directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from routers import prompts_router, research_router, reports_router
 
 app = FastAPI(
     title="Competitive Intelligence API",
@@ -18,6 +25,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(prompts_router)
+app.include_router(research_router)
+app.include_router(reports_router)
 
 
 @app.get("/")
