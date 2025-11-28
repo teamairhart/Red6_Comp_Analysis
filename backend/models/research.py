@@ -31,6 +31,22 @@ class ResearchProgress(BaseModel):
     timestamp: datetime
 
 
+class Citation(BaseModel):
+    """A citation/source reference"""
+    url: str
+    title: Optional[str] = None
+
+
+class ProviderResult(BaseModel):
+    """Result from a single provider"""
+    provider: str
+    status: ResearchStatus = ResearchStatus.PENDING
+    content: Optional[str] = None
+    citations: list[Citation] = []
+    model: Optional[str] = None
+    error: Optional[str] = None
+
+
 class ResearchJob(BaseModel):
     """A research job"""
     id: str
@@ -40,11 +56,18 @@ class ResearchJob(BaseModel):
     status: ResearchStatus
     providers: list[str]
     mode: str
+    progress: int = 0  # 0-100 percentage
+    results: list[ProviderResult] = []
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None
     result_file: Optional[str] = None
     error: Optional[str] = None
+    # Source tracking
+    recommended_sources: list[str] = []  # Source IDs recommended for this research
+    cited_sources: list[str] = []  # Source IDs that were actually cited in results
+    # Delta analysis
+    delta_report_id: Optional[str] = None  # ID of the associated delta report
 
 
 class ResearchResponse(BaseModel):

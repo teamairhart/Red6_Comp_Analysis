@@ -1,0 +1,6 @@
+Research Run Metadata
+=====================
+Company: Microsoft
+Prompt: Executive Movements
+Timestamp: 2025-11-28T18:17:14.889820
+Providers: xai

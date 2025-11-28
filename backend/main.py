@@ -2,14 +2,21 @@
 Competitive Intelligence Platform - FastAPI Backend
 """
 import sys
+import logging
 from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Add backend directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import prompts_router, research_router, reports_router
+from routers import prompts_router, research_router, reports_router, sources_router, delta_router, schedule_router
 
 app = FastAPI(
     title="Competitive Intelligence API",
@@ -30,6 +37,9 @@ app.add_middleware(
 app.include_router(prompts_router)
 app.include_router(research_router)
 app.include_router(reports_router)
+app.include_router(sources_router)
+app.include_router(delta_router)
+app.include_router(schedule_router)
 
 
 @app.get("/")
