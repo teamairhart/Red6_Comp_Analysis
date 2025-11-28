@@ -1,0 +1,6 @@
+Research Run Metadata
+=====================
+Company: Cross-Competitor-Synthesis
+Prompt: comprehensive_cross_competitor_synthesis
+Timestamp: 2025-11-28T05:27:50.487691
+Providers: openai, xai, anthropic, google

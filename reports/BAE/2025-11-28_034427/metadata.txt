@@ -1,0 +1,6 @@
+Research Run Metadata
+=====================
+Company: BAE
+Prompt: recent_investments_and_new_product_releases
+Timestamp: 2025-11-28T03:44:27.718789
+Providers: openai

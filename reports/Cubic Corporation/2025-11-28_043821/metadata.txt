@@ -1,0 +1,6 @@
+Research Run Metadata
+=====================
+Company: Cubic Corporation
+Prompt: comprehensive_cross_competitor_synthesis
+Timestamp: 2025-11-28T04:38:21.993616
+Providers: google, openai

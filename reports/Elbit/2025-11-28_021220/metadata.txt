@@ -1,0 +1,6 @@
+Research Run Metadata
+=====================
+Company: Elbit
+Prompt: recent_contract_awards
+Timestamp: 2025-11-28T02:12:20.443489
+Providers: anthropic, openai

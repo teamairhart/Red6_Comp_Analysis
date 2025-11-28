@@ -1,0 +1,6 @@
+Research Run Metadata
+=====================
+Company: Thales
+Prompt: comprehensive_cross_competitor_synthesis
+Timestamp: 2025-11-28T02:52:13.806722
+Providers: xai, google, openai, anthropic
