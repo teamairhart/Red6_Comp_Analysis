@@ -344,11 +344,11 @@ useWebSocket(jobId)
 **Goal**: Beautiful company selection interface
 
 **Tasks**:
-- [x] 3.1.1 Create company card components (text input field)
-- [ ] 3.1.2 Show priority companies prominently
-- [ ] 3.1.3 Create searchable dropdown for others
+- [x] 3.1.1 Create company card components
+- [x] 3.1.2 Show priority companies prominently
+- [x] 3.1.3 Create searchable dropdown for others (custom input field)
 - [ ] 3.1.4 Add multi-select for comparison mode
-- [ ] 3.1.5 Style with animations
+- [x] 3.1.5 Style with animations
 
 **Test Criteria**:
 - Can select single company
@@ -361,8 +361,8 @@ useWebSocket(jobId)
 **Goal**: Categorized prompt selection
 
 **Tasks**:
-- [x] 3.2.1 Display prompts by category (dropdown selector)
-- [ ] 3.2.2 Show prompt previews on hover
+- [x] 3.2.1 Display prompts by category
+- [x] 3.2.2 Show prompt previews on hover (expandable categories)
 - [ ] 3.2.3 Allow multi-select for batch runs
 - [x] 3.2.4 Preserve category headers from Streamlit
 
@@ -377,7 +377,7 @@ useWebSocket(jobId)
 **Goal**: Configure research parameters
 
 **Tasks**:
-- [x] 3.3.1 Show provider cards with status (checkboxes)
+- [x] 3.3.1 Show provider cards with status
 - [x] 3.3.2 Allow provider selection (multi-select)
 - [x] 3.3.3 Add mode toggle (basic/deep)
 - [ ] 3.3.4 Show cost estimate
