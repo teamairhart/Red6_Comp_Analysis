@@ -28,12 +28,12 @@ A modern, enterprise-grade Competitive Intelligence Platform with:
 - Real-time progress updates
 
 ### Success Criteria
-- [ ] All current Streamlit functionality preserved
-- [ ] Research runs successfully through new UI
-- [ ] Real-time progress updates working
-- [ ] Delta detection operational
-- [ ] Source library integrated
-- [ ] Scheduled research functional
+- [x] All current Streamlit functionality preserved
+- [x] Research runs successfully through new UI
+- [x] Real-time progress updates working (polling-based)
+- [x] Delta detection operational
+- [x] Source library integrated
+- [x] Scheduled research functional
 - [ ] Team can use without training
 
 ---
@@ -268,8 +268,8 @@ class ProgressEvent(BaseModel):
 - [x] 2.1.2 Add navigation (top header nav with links)
 - [ ] 2.1.3 Add user menu (placeholder)
 - [x] 2.1.4 Create API status indicator in header
-- [ ] 2.1.5 Implement dark mode toggle
-- [ ] 2.1.6 Add loading states and skeletons
+- [x] 2.1.5 Implement dark mode toggle
+- [x] 2.1.6 Add loading states and skeletons
 
 **Pages to Create**:
 ```
@@ -302,7 +302,7 @@ app/
 - [x] 2.2.2 Add quick action buttons (New Research, View Reports, View Prompts)
 - [x] 2.2.3 Create recent topics section
 - [x] 2.2.4 Create tracked competitors list
-- [ ] 2.2.5 Add loading and error states
+- [x] 2.2.5 Add loading and error states
 
 **Test Criteria**:
 - Metrics display correct values from API
@@ -344,7 +344,7 @@ useWebSocket(jobId)
 **Goal**: Beautiful company selection interface
 
 **Tasks**:
-- [ ] 3.1.1 Create company card components
+- [x] 3.1.1 Create company card components (text input field)
 - [ ] 3.1.2 Show priority companies prominently
 - [ ] 3.1.3 Create searchable dropdown for others
 - [ ] 3.1.4 Add multi-select for comparison mode
@@ -361,10 +361,10 @@ useWebSocket(jobId)
 **Goal**: Categorized prompt selection
 
 **Tasks**:
-- [ ] 3.2.1 Display prompts by category
+- [x] 3.2.1 Display prompts by category (dropdown selector)
 - [ ] 3.2.2 Show prompt previews on hover
 - [ ] 3.2.3 Allow multi-select for batch runs
-- [ ] 3.2.4 Preserve category headers from Streamlit
+- [x] 3.2.4 Preserve category headers from Streamlit
 
 **Test Criteria**:
 - Prompts grouped correctly
@@ -377,9 +377,9 @@ useWebSocket(jobId)
 **Goal**: Configure research parameters
 
 **Tasks**:
-- [ ] 3.3.1 Show provider cards with status
-- [ ] 3.3.2 Allow provider selection (multi-select)
-- [ ] 3.3.3 Add mode toggle (basic/deep)
+- [x] 3.3.1 Show provider cards with status (checkboxes)
+- [x] 3.3.2 Allow provider selection (multi-select)
+- [x] 3.3.3 Add mode toggle (basic/deep)
 - [ ] 3.3.4 Show cost estimate
 - [ ] 3.3.5 Add synthesis toggle
 
@@ -746,6 +746,7 @@ After each work session:
 - Source Library (/sources) - category sidebar, search, source cards, add source modal
 - **Intelligence Briefing (/briefing)** - summary cards, critical findings, findings by company
 - **Company Timeline (/briefing/company/[company])** - chronological findings timeline with filters
+- **Schedules (/schedules)** - create/edit/pause/resume/delete scheduled research
 
 ### Backend Endpoints Working:
 - GET /api/health
@@ -766,6 +767,17 @@ After each work session:
 - **GET /api/delta/findings** - get findings with filters
 - **GET /api/delta/briefing** - get intelligence briefing data
 - **GET /api/delta/company/{company}/timeline** - get company timeline
+- **GET /api/schedules** - list all schedules
+- **POST /api/schedules** - create new schedule
+- **GET /api/schedules/{id}** - get schedule by ID
+- **PUT /api/schedules/{id}** - update schedule
+- **DELETE /api/schedules/{id}** - delete schedule
+- **POST /api/schedules/{id}/run** - trigger immediate run
+- **POST /api/schedules/{id}/pause** - pause schedule
+- **POST /api/schedules/{id}/resume** - resume schedule
+- **GET /api/schedules/notifications/all** - get all notifications
+- **GET /api/schedules/notifications/count** - get unread count
+- **POST /api/schedules/notifications/read-all** - mark all as read
 
 ---
 
