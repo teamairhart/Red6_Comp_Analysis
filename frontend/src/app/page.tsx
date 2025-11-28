@@ -20,12 +20,14 @@ const quickResearchTopics = [
 ];
 
 const primaryCompetitors = [
+  // Primary Competitors (top priority)
+  { name: "Elbit Systems", sector: "Defense Electronics", primary: true },
+  { name: "Thales", sector: "Defense & Aerospace", primary: true },
+  { name: "BAE Systems", sector: "Defense & Security", primary: true },
+  // Other key competitors
   { name: "Lockheed Martin", sector: "Aerospace & Defense" },
   { name: "Northrop Grumman", sector: "Aerospace & Defense" },
-  { name: "Boeing", sector: "Aerospace & Defense" },
-  { name: "BAE Systems", sector: "Defense" },
   { name: "Raytheon", sector: "Defense Technology" },
-  { name: "L3Harris", sector: "Communications & Electronics" },
 ];
 
 export default function Dashboard() {
@@ -130,8 +132,13 @@ export default function Dashboard() {
               <AnimatedList className="space-y-3">
                 {primaryCompetitors.map((company) => (
                   <AnimatedListItem key={company.name}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{company.name}</span>
+                    <div className={`flex items-center justify-between text-sm ${company.primary ? "p-2 rounded-md bg-primary/5 border border-primary/20" : ""}`}>
+                      <div className="flex items-center gap-2">
+                        {company.primary && (
+                          <span className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <span className={company.primary ? "font-semibold" : "font-medium"}>{company.name}</span>
+                      </div>
                       <span className="text-muted-foreground">{company.sector}</span>
                     </div>
                   </AnimatedListItem>

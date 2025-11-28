@@ -38,14 +38,16 @@ const STEPS = [
 ];
 
 const PRIORITY_COMPANIES = [
+  // Primary Competitors
+  { name: "Elbit Systems", sector: "Defense Electronics", primary: true },
+  { name: "Thales", sector: "Defense & Aerospace", primary: true },
+  { name: "BAE Systems", sector: "Defense & Security", primary: true },
+  // Other Competitors
   { name: "Lockheed Martin", sector: "Aerospace & Defense" },
   { name: "Northrop Grumman", sector: "Aerospace & Defense" },
   { name: "Boeing", sector: "Aerospace & Defense" },
-  { name: "BAE Systems", sector: "Defense" },
   { name: "Raytheon", sector: "Defense Technology" },
   { name: "L3Harris", sector: "Communications" },
-  { name: "General Dynamics", sector: "Defense" },
-  { name: "Leidos", sector: "IT Services" },
 ];
 
 const PROVIDERS = [
@@ -254,29 +256,67 @@ export default function ResearchWizard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {PRIORITY_COMPANIES.map((comp) => (
-                      <motion.button
-                        key={comp.name}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          setCompany(comp.name);
-                          setCustomCompany("");
-                        }}
-                        className={cn(
-                          "p-4 rounded-lg border-2 text-left transition-all",
-                          company === comp.name
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        )}
-                      >
-                        <div className="font-medium text-sm">{comp.name}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {comp.sector}
-                        </div>
-                      </motion.button>
-                    ))}
+                  {/* Primary Competitors */}
+                  <div>
+                    <div className="text-xs font-semibold text-primary mb-2 uppercase tracking-wide">
+                      Primary Competitors
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {PRIORITY_COMPANIES.filter((c) => c.primary).map((comp) => (
+                        <motion.button
+                          key={comp.name}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setCompany(comp.name);
+                            setCustomCompany("");
+                          }}
+                          className={cn(
+                            "p-4 rounded-lg border-2 text-left transition-all relative",
+                            company === comp.name
+                              ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                              : "border-primary/30 bg-primary/5 hover:border-primary hover:bg-primary/10"
+                          )}
+                        >
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full" />
+                          <div className="font-semibold text-sm">{comp.name}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {comp.sector}
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Other Competitors */}
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                      Other Competitors
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {PRIORITY_COMPANIES.filter((c) => !c.primary).map((comp) => (
+                        <motion.button
+                          key={comp.name}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setCompany(comp.name);
+                            setCustomCompany("");
+                          }}
+                          className={cn(
+                            "p-3 rounded-lg border text-left transition-all",
+                            company === comp.name
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          )}
+                        >
+                          <div className="font-medium text-sm">{comp.name}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {comp.sector}
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="relative">
