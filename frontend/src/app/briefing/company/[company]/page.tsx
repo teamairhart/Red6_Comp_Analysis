@@ -316,7 +316,7 @@ export default function CompanyTimelinePage() {
             <p className="text-sm text-muted-foreground mt-2">
               Run research on this company to generate delta intelligence.
             </p>
-            <Link href="/research">
+            <Link href="/">
               <Button className="mt-4">Start Research</Button>
             </Link>
           </CardContent>
@@ -328,7 +328,7 @@ export default function CompanyTimelinePage() {
         <Link href="/briefing">
           <Button variant="outline">Back to Briefing</Button>
         </Link>
-        <Link href="/research">
+        <Link href="/">
           <Button>New Research on {company}</Button>
         </Link>
       </div>

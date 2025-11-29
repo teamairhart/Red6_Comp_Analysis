@@ -335,7 +335,7 @@ export default function BriefingPage() {
             <p className="text-sm text-muted-foreground mt-2">
               Run research on companies to generate delta intelligence.
             </p>
-            <Link href="/research">
+            <Link href="/">
               <Button className="mt-4">Start Research</Button>
             </Link>
           </CardContent>

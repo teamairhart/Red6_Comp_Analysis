@@ -118,7 +118,7 @@ export default function ResearchJobPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-red-500">{error}</p>
-            <Link href="/research">
+            <Link href="/">
               <Button className="mt-4">Start New Research</Button>
             </Link>
           </CardContent>
@@ -250,7 +250,7 @@ export default function ResearchJobPage() {
             <Button>View Results</Button>
           </Link>
         )}
-        <Link href="/research">
+        <Link href="/">
           <Button variant="outline">New Research</Button>
         </Link>
         <Link href="/reports">

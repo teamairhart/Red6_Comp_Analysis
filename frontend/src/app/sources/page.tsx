@@ -399,7 +399,7 @@ export default function SourcesPage() {
                     {source.description}
                   </p>
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {source.keywords.slice(0, 4).map((kw) => (
+                    {source.keywords.slice(0, 4).map((kw: string) => (
                       <span
                         key={kw}
                         className="text-xs bg-muted px-2 py-0.5 rounded"

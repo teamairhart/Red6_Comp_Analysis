@@ -1,174 +1,253 @@
-# Custom Source Library for Competitive Intelligence Research
-# These sources are curated by the team and can be referenced in research prompts
-# to guide AI researchers to authoritative and relevant information.
-
 categories:
-  - id: government
-    name: Government & Regulatory
-    icon: building-2
-    description: Official government databases and regulatory filings
-    sources:
-      - id: sam_gov
-        name: SAM.gov
-        url: https://sam.gov
-        description: Federal contract awards, entity registrations, and exclusions
-        keywords: [contracts, federal, awards, government, procurement]
-        reliability: high
-        update_frequency: daily
-
-      - id: fpds
-        name: FPDS-NG
-        url: https://www.fpds.gov
-        description: Federal Procurement Data System - comprehensive contract data
-        keywords: [procurement, contracts, spending, federal]
-        reliability: high
-        update_frequency: daily
-
-      - id: usaspending
-        name: USAspending.gov
-        url: https://www.usaspending.gov
-        description: Federal spending data and contract details
-        keywords: [spending, budget, contracts, awards]
-        reliability: high
-        update_frequency: daily
-
-      - id: sec_edgar
-        name: SEC EDGAR
-        url: https://www.sec.gov/edgar
-        description: Corporate filings, 10-K, 10-Q, proxy statements
-        keywords: [sec, filings, financial, annual report, quarterly]
-        reliability: high
-        update_frequency: daily
-
-  - id: defense
-    name: Defense & Aerospace
-    icon: shield
-    description: Defense industry news and contract tracking
-    sources:
-      - id: defense_news
-        name: Defense News
-        url: https://www.defensenews.com
-        description: Leading defense industry publication
-        keywords: [defense, military, contracts, pentagon]
-        reliability: high
-        update_frequency: daily
-
-      - id: breaking_defense
-        name: Breaking Defense
-        url: https://breakingdefense.com
-        description: Defense technology and policy news
-        keywords: [defense, technology, policy, military]
-        reliability: high
-        update_frequency: daily
-
-      - id: janes
-        name: Janes
-        url: https://www.janes.com
-        description: Defense intelligence and analysis (subscription)
-        keywords: [defense, intelligence, military, analysis]
-        reliability: high
-        update_frequency: daily
-
-      - id: aviation_week
-        name: Aviation Week
-        url: https://aviationweek.com
-        description: Aerospace and defense industry coverage
-        keywords: [aerospace, aviation, defense, manufacturing]
-        reliability: high
-        update_frequency: daily
-
-  - id: business
-    name: Business Intelligence
-    icon: briefcase
-    description: Business news and financial analysis
-    sources:
-      - id: bloomberg
-        name: Bloomberg
-        url: https://www.bloomberg.com
-        description: Financial news and market data
-        keywords: [finance, markets, business, earnings]
-        reliability: high
-        update_frequency: real-time
-
-      - id: reuters
-        name: Reuters
-        url: https://www.reuters.com
-        description: Global news and business coverage
-        keywords: [news, business, international, markets]
-        reliability: high
-        update_frequency: real-time
-
-      - id: wsj
-        name: Wall Street Journal
-        url: https://www.wsj.com
-        description: Business and financial news
-        keywords: [business, finance, markets, economy]
-        reliability: high
-        update_frequency: daily
-
-  - id: patents
-    name: Patents & IP
-    icon: file-text
-    description: Patent databases and intellectual property
-    sources:
-      - id: uspto
-        name: USPTO
-        url: https://www.uspto.gov
-        description: US Patent and Trademark Office
-        keywords: [patents, trademarks, ip, intellectual property]
-        reliability: high
-        update_frequency: weekly
-
-      - id: google_patents
-        name: Google Patents
-        url: https://patents.google.com
-        description: Searchable patent database
-        keywords: [patents, search, technology, inventions]
-        reliability: high
-        update_frequency: weekly
-
-  - id: talent
-    name: Talent & Hiring
-    icon: users
-    description: Job postings and organizational information
-    sources:
-      - id: linkedin
-        name: LinkedIn
-        url: https://www.linkedin.com
-        description: Professional network and job postings
-        keywords: [hiring, jobs, executives, employees, organization]
-        reliability: medium
-        update_frequency: real-time
-
-      - id: glassdoor
-        name: Glassdoor
-        url: https://www.glassdoor.com
-        description: Company reviews and salary data
-        keywords: [reviews, salary, culture, jobs]
-        reliability: medium
-        update_frequency: daily
-
-  - id: research
-    name: Research & Analysis
-    icon: search
-    description: Industry research and analyst reports
-    sources:
-      - id: gartner
-        name: Gartner
-        url: https://www.gartner.com
-        description: Technology research and advisory
-        keywords: [research, technology, analysis, trends]
-        reliability: high
-        update_frequency: varies
-
-      - id: forrester
-        name: Forrester
-        url: https://www.forrester.com
-        description: Technology and market research
-        keywords: [research, technology, market, trends]
-        reliability: high
-        update_frequency: varies
-
-# Metadata
-version: "1.0"
-last_updated: "2025-11-28"
+- id: government
+  name: Government & Regulatory
+  icon: building-2
+  description: Official government databases and regulatory filings
+  sources:
+  - id: sam_gov
+    name: SAM.gov
+    url: https://sam.gov
+    description: Federal contract awards, entity registrations, and exclusions
+    keywords:
+    - contracts
+    - federal
+    - awards
+    - government
+    - procurement
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: fpds
+    name: FPDS-NG
+    url: https://www.fpds.gov
+    description: Federal Procurement Data System - comprehensive contract data
+    keywords:
+    - procurement
+    - contracts
+    - spending
+    - federal
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: usaspending
+    name: USAspending.gov
+    url: https://www.usaspending.gov
+    description: Federal spending data and contract details
+    keywords:
+    - spending
+    - budget
+    - contracts
+    - awards
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: sec_edgar
+    name: SEC EDGAR
+    url: https://www.sec.gov/edgar
+    description: Corporate filings, 10-K, 10-Q, proxy statements
+    keywords:
+    - sec
+    - filings
+    - financial
+    - annual report
+    - quarterly
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+- id: defense
+  name: Defense & Aerospace
+  icon: shield
+  description: Defense industry news and contract tracking
+  sources:
+  - id: defense_news
+    name: Defense News
+    url: https://www.defensenews.com
+    description: Leading defense industry publication
+    keywords:
+    - defense
+    - military
+    - contracts
+    - pentagon
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: breaking_defense
+    name: Breaking Defense
+    url: https://breakingdefense.com
+    description: Defense technology and policy news
+    keywords:
+    - defense
+    - technology
+    - policy
+    - military
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: janes
+    name: Janes
+    url: https://www.janes.com
+    description: Defense intelligence and analysis (subscription)
+    keywords:
+    - defense
+    - intelligence
+    - military
+    - analysis
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: aviation_week
+    name: Aviation Week
+    url: https://aviationweek.com
+    description: Aerospace and defense industry coverage
+    keywords:
+    - aerospace
+    - aviation
+    - defense
+    - manufacturing
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+  - id: '85957175'
+    name: The Merge
+    url: https://themerge.co/
+    description: Military tech, trends, and happenings delivered twice a week
+    keywords:
+    - defense
+    - military
+    - contracts
+    - aviation
+    - simulation
+    reliability: high
+    update_frequency: weekly
+    hit_count: 0
+- id: business
+  name: Business Intelligence
+  icon: briefcase
+  description: Business news and financial analysis
+  sources:
+  - id: bloomberg
+    name: Bloomberg
+    url: https://www.bloomberg.com
+    description: Financial news and market data
+    keywords:
+    - finance
+    - markets
+    - business
+    - earnings
+    reliability: high
+    update_frequency: real-time
+    hit_count: 0
+  - id: reuters
+    name: Reuters
+    url: https://www.reuters.com
+    description: Global news and business coverage
+    keywords:
+    - news
+    - business
+    - international
+    - markets
+    reliability: high
+    update_frequency: real-time
+    hit_count: 0
+  - id: wsj
+    name: Wall Street Journal
+    url: https://www.wsj.com
+    description: Business and financial news
+    keywords:
+    - business
+    - finance
+    - markets
+    - economy
+    reliability: high
+    update_frequency: daily
+    hit_count: 0
+- id: patents
+  name: Patents & IP
+  icon: file-text
+  description: Patent databases and intellectual property
+  sources:
+  - id: uspto
+    name: USPTO
+    url: https://www.uspto.gov
+    description: US Patent and Trademark Office
+    keywords:
+    - patents
+    - trademarks
+    - ip
+    - intellectual property
+    reliability: high
+    update_frequency: weekly
+    hit_count: 0
+  - id: google_patents
+    name: Google Patents
+    url: https://patents.google.com
+    description: Searchable patent database
+    keywords:
+    - patents
+    - search
+    - technology
+    - inventions
+    reliability: high
+    update_frequency: weekly
+    hit_count: 0
+- id: talent
+  name: Talent & Hiring
+  icon: users
+  description: Job postings and organizational information
+  sources:
+  - id: linkedin
+    name: LinkedIn
+    url: https://www.linkedin.com
+    description: Professional network and job postings
+    keywords:
+    - hiring
+    - jobs
+    - executives
+    - employees
+    - organization
+    reliability: medium
+    update_frequency: real-time
+    hit_count: 0
+  - id: glassdoor
+    name: Glassdoor
+    url: https://www.glassdoor.com
+    description: Company reviews and salary data
+    keywords:
+    - reviews
+    - salary
+    - culture
+    - jobs
+    reliability: medium
+    update_frequency: daily
+    hit_count: 0
+- id: research
+  name: Research & Analysis
+  icon: search
+  description: Industry research and analyst reports
+  sources:
+  - id: gartner
+    name: Gartner
+    url: https://www.gartner.com
+    description: Technology research and advisory
+    keywords:
+    - research
+    - technology
+    - analysis
+    - trends
+    reliability: high
+    update_frequency: varies
+    hit_count: 0
+  - id: forrester
+    name: Forrester
+    url: https://www.forrester.com
+    description: Technology and market research
+    keywords:
+    - research
+    - technology
+    - market
+    - trends
+    reliability: high
+    update_frequency: varies
+    hit_count: 0
+version: '1.0'
+last_updated: '2025-11-28'

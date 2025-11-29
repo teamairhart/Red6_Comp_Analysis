@@ -135,7 +135,7 @@ export default function ReportDetailPage() {
 
       {/* Actions */}
       <div className="flex gap-4">
-        <Link href="/research">
+        <Link href="/">
           <Button variant="outline">New Research</Button>
         </Link>
         <Link href="/reports">

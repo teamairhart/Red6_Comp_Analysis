@@ -113,7 +113,7 @@ Thales,https://www.thalesgroup.com
 @pytest.fixture
 def sample_prompt_file(tmp_path):
     """Create a temporary prompt file."""
-    prompt_content = """# Leadership Team Dynamics
+    prompt_content = """# Executive Movements
 
 Research [COMPANY NAME] for the following information:
 
@@ -123,7 +123,7 @@ Research [COMPANY NAME] for the following information:
 """
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
-    prompt_file = prompts_dir / "leadership_team_dynamics.md"
+    prompt_file = prompts_dir / "executive_movements.md"
     prompt_file.write_text(prompt_content)
     return prompts_dir
 

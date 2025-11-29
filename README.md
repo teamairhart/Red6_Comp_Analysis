@@ -1,6 +1,6 @@
-# Red 6 Competitive Intelligence Research Platform
+# Red 6 Competitive Intelligence Platform
 
-A multi-provider LLM research orchestration platform that runs competitive intelligence queries across 5 AI providers in parallel, cross-validates findings, and synthesizes results into unified reports with confidence scoring.
+A multi-provider LLM research orchestration platform that runs competitive intelligence queries across 5 AI providers in parallel, cross-validates findings, synthesizes results into unified reports, and maintains a per-company knowledge base to track what's changed over time.
 
 ## Overview
 
@@ -8,15 +8,75 @@ This platform enables Red 6's competitive intelligence team to:
 
 - **Run parallel research** across OpenAI, Anthropic, Google, xAI, and Perplexity simultaneously
 - **Cross-validate findings** by comparing what multiple AI providers report
-- **Synthesize results** into unified reports with confidence levels and discrepancy flagging
-- **Track costs** per provider and session with budget warnings
+- **Synthesize results** into unified combined reports with confidence levels
+- **Track changes over time** using a per-company Knowledge Base that detects NEW, UPDATED, and CONTRADICTED information
+- **View Intelligence Briefings** summarizing what's changed across all companies
 - **Export reports** in multiple formats (Markdown, HTML, DOCX, PDF)
+
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Next.js Frontend (Port 3000)                         │
+│   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
+│   │  Dashboard  │ │   Reports   │ │  Briefing   │ │   Prompts   │           │
+│   │ (New Research)│ │   Library   │ │ (Deltas)    │ │   Library   │           │
+│   └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘           │
+└──────────┼───────────────┼───────────────┼───────────────┼──────────────────┘
+           │               │               │               │
+           └───────────────┴───────────────┴───────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      FastAPI Backend (Port 8000)                             │
+│                                                                              │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │                         API Routers                                   │  │
+│   │  /api/research  /api/prompts  /api/reports  /api/delta  /api/sources │  │
+│   └─────────────────────────────┬────────────────────────────────────────┘  │
+│                                 │                                            │
+│   ┌─────────────────────────────┴────────────────────────────────────────┐  │
+│   │                          Services                                     │  │
+│   │                                                                       │  │
+│   │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐   │  │
+│   │  │ Research Engine │  │ Synthesis       │  │ Knowledge Base      │   │  │
+│   │  │ (Multi-provider)│  │ Service         │  │ Service             │   │  │
+│   │  └────────┬────────┘  └────────┬────────┘  └──────────┬──────────┘   │  │
+│   │           │                    │                      │               │  │
+│   └───────────┼────────────────────┼──────────────────────┼───────────────┘  │
+│               │                    │                      │                  │
+│   ┌───────────┴────────────────────┴──────────────────────┴───────────────┐  │
+│   │                      AI Provider Clients                              │  │
+│   │  ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────────┐               │  │
+│   │  │OpenAI │ │Anthro │ │Google │ │ xAI   │ │Perplexity │               │  │
+│   │  │GPT-4  │ │Claude │ │Gemini │ │Grok   │ │  Sonar    │               │  │
+│   │  └───────┘ └───────┘ └───────┘ └───────┘ └───────────┘               │  │
+│   └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            Data Storage                                      │
+│                                                                              │
+│   /reports/{company}/{date}/          - Generated research reports          │
+│   /reports/.delta/{job_id}.json       - Delta analysis results              │
+│   /knowledge_base/{company}.json      - Per-company entity knowledge base   │
+│   /data/jobs/{job_id}.json            - Research job records                │
+│   /data/prompts.json                  - Prompt library                       │
+│   /data/sources.json                  - Curated intelligence sources        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Backend Setup
 
 ```bash
+cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -24,7 +84,7 @@ pip install -r requirements.txt
 
 ### 2. Configure API Keys
 
-Create a `.env` file in the project root:
+Create a `.env` file in the **project root** directory:
 
 ```env
 OPENAI_API_KEY=sk-...
@@ -34,83 +94,390 @@ XAI_API_KEY=xai-...
 PERPLEXITY_API_KEY=pplx-...
 ```
 
-### 3. Run the Application
+> Note: At minimum, you need `ANTHROPIC_API_KEY` for entity extraction and at least one other provider key for research.
 
-**Web UI (Recommended):**
-```bash
-streamlit run app.py
-```
-Then open http://localhost:8501
+### 3. Start Backend
 
-**Command Line:**
 ```bash
-python run_research.py "Elbit Systems" leadership_team_dynamics --mode basic
+cd backend
+source venv/bin/activate
+uvicorn main:app --reload --port 8000
 ```
+
+### 4. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 5. Access the Application
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+---
 
 ## Project Structure
 
 ```
 competitive_analysis_research/
-├── app.py                      # Streamlit web application
-├── run_research.py             # CLI entry point
-├── api/                        # Core research engine
-│   ├── base_researcher.py      # Abstract base class for providers
-│   ├── research_engine.py      # Orchestration & parallel execution
-│   ├── openai_research.py      # OpenAI GPT-5.1 provider
-│   ├── anthropic_research.py   # Anthropic Claude Opus 4.5 provider
-│   ├── google_research.py      # Google Gemini 3 Pro provider
-│   ├── xai_research.py         # xAI Grok 4 provider
-│   ├── perplexity_research.py  # Perplexity Sonar provider
-│   ├── synthesis_agent.py      # Cross-validation & synthesis
-│   ├── cost_calculator.py      # Token cost tracking
-│   └── export_utils.py         # Report export (MD/HTML/DOCX/PDF)
-├── prompts/                    # Research prompt templates
-├── reports/                    # Generated reports (timestamped)
-├── companies.csv               # Target companies list
-└── .env                        # API keys (not committed)
+├── api/                            # Core research engine
+│   ├── __init__.py                 # Package exports
+│   ├── base_researcher.py          # Abstract base class for providers
+│   ├── research_engine.py          # Orchestration & parallel execution
+│   ├── openai_research.py          # OpenAI GPT provider
+│   ├── anthropic_research.py       # Anthropic Claude provider
+│   ├── google_research.py          # Google Gemini provider
+│   ├── xai_research.py             # xAI Grok provider
+│   ├── perplexity_research.py      # Perplexity Sonar provider
+│   ├── synthesis_agent.py          # Cross-model synthesis
+│   ├── cost_calculator.py          # API cost tracking
+│   └── export_utils.py             # Report export utilities
+│
+├── backend/
+│   ├── main.py                     # FastAPI application entry
+│   ├── routers/                    # API route handlers
+│   │   ├── research.py             # Research job endpoints
+│   │   ├── prompts.py              # Prompt library endpoints
+│   │   ├── reports.py              # Report browsing endpoints
+│   │   ├── delta.py                # Delta/briefing endpoints
+│   │   ├── sources.py              # Intelligence sources endpoints
+│   │   └── schedule.py             # Scheduled research endpoints
+│   ├── services/                   # Business logic
+│   │   ├── research_service.py     # Research orchestration
+│   │   ├── synthesis_service.py    # Multi-model report synthesis
+│   │   ├── knowledge_base_service.py # Entity extraction & change detection
+│   │   ├── delta_service.py        # Delta analysis service
+│   │   └── source_service.py       # Source management
+│   ├── models/                     # Pydantic data models
+│   │   ├── research.py             # Research job models
+│   │   ├── knowledge_base.py       # Entity & KB models
+│   │   └── delta.py                # Delta finding models
+│   └── data/                       # Persistent job data
+│
+├── frontend/
+│   ├── src/app/                    # Next.js pages (App Router)
+│   │   ├── page.tsx                # Dashboard (New Research)
+│   │   ├── reports/                # Reports library
+│   │   ├── briefing/               # Intelligence Briefing
+│   │   ├── prompts/                # Prompt library
+│   │   └── research/[jobId]/       # Research progress & results
+│   └── src/components/             # React components
+│
+├── prompts/                        # Research prompt templates (.md files)
+├── reports/                        # Generated research reports
+│   └── .delta/                     # Delta analysis results
+├── docs/                           # API documentation
+├── tests/                          # Unit tests for api/ module
+├── companies.csv                   # Tracked companies list
+├── sources.yaml                    # Curated intelligence sources
+└── .env                            # API keys (not committed)
 ```
 
-## Research Providers
+---
 
-| Provider | Model | Web Search | Notes |
-|----------|-------|------------|-------|
-| OpenAI | GPT-5.1 | Responses API | `web_search_preview` tool |
-| Anthropic | Claude Opus 4.5 | MCP Tool | `web_search_20250305`, search costs extra |
-| Google | Gemini 3 Pro | Grounding | Google Search grounding |
-| xAI | Grok 4 | Built-in | Searches web + X (Twitter) |
-| Perplexity | Sonar Pro/Deep | Native | Built into Sonar models |
+## Core Features
 
-## Research Modes
+### 1. Multi-Provider Research
 
-### Basic Mode
-- Quick research scan (~30-60 seconds)
-- 5-10 web searches per provider
-- Lower cost (~$0.75-1.50 per run across all providers)
-- Good for initial reconnaissance
+Run competitive intelligence queries across 5 AI providers simultaneously:
 
-### Deep Mode
-- Comprehensive analysis (~2-5 minutes)
-- 15-25+ web searches per provider
-- Higher cost (~$2.25-4.50 per run)
-- Exhaustive research with verification
+| Provider   | Model            | Web Search      | Best For                    |
+|------------|------------------|-----------------|------------------------------|
+| OpenAI     | GPT-4            | Responses API   | General analysis             |
+| Anthropic  | Claude Sonnet    | MCP Tool        | Detailed, nuanced analysis   |
+| Google     | Gemini           | Grounding       | Fast, current information    |
+| xAI        | Grok             | Built-in        | Real-time data + X/Twitter   |
+| Perplexity | Sonar Pro        | Native          | Best citations & current news|
+
+### 2. Combined Report Synthesis
+
+When multiple models are selected with "Generate Combined Report" enabled:
+
+1. Each provider runs research independently
+2. Claude synthesizes all outputs into ONE unified report
+3. The combined report includes:
+   - **Executive Summary** - Key findings across all models
+   - **High-Confidence Findings** - Points where models AGREED
+   - **Areas of Disagreement** - Where models conflicted
+   - **Unique Insights by Model** - What each model uniquely found
+   - **Methodology Note** - Which models contributed
+
+### 3. Research Modes
+
+| Mode     | Speed     | Depth          | Use Case                    |
+|----------|-----------|----------------|-----------------------------|
+| Basic    | ~30-60s   | Quick scan     | Initial reconnaissance      |
+| Deep     | ~2-5 min  | Comprehensive  | Detailed competitive intel  |
+| Combined | ~3-6 min  | Multi-model    | Highest confidence results  |
+
+---
+
+## Knowledge Base System
+
+The Knowledge Base is a per-company database that tracks structured entities over time. This enables the system to detect what's genuinely NEW vs. what was already known.
+
+### How It Works
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         KNOWLEDGE BASE FLOW                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+1. Research Completes
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Report: "Elbit M&A Activity"                                │
+   │  Content: "Elbit acquired Sparton Corp for $380M..."         │
+   └──────────────────────────────────┬───────────────────────────┘
+                                      │
+                                      ▼
+2. Entity Extraction (Claude)
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Extracted Entities:                                         │
+   │  - ACQUISITION: Sparton Corp ($380M, 2021)                   │
+   │  - EXECUTIVE: Bezhalel Machlis (CEO)                         │
+   │  - TECHNOLOGY: Night vision systems                          │
+   └──────────────────────────────────┬───────────────────────────┘
+                                      │
+                                      ▼
+3. Load Existing Knowledge Base
+   ┌──────────────────────────────────────────────────────────────┐
+   │  /knowledge_base/elbit_systems.json                          │
+   │  {                                                           │
+   │    "company": "Elbit Systems",                               │
+   │    "entities": [                                             │
+   │      { "type": "EXECUTIVE", "name": "Bezhalel Machlis" },    │
+   │      { "type": "CUSTOMER", "name": "IDF" }                   │
+   │    ]                                                         │
+   │  }                                                           │
+   └──────────────────────────────────┬───────────────────────────┘
+                                      │
+                                      ▼
+4. Change Detection (Claude)
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Compare new entities vs existing KB:                        │
+   │                                                              │
+   │  - Sparton Corp acquisition → NEW (not in KB)                │
+   │  - Bezhalel Machlis CEO → CONFIRMED (already known)          │
+   │  - Night vision systems → NEW (not in KB)                    │
+   └──────────────────────────────────┬───────────────────────────┘
+                                      │
+                                      ▼
+5. Update KB + Generate Delta Report
+   ┌──────────────────────────────────────────────────────────────┐
+   │  - Add new entities to KB                                    │
+   │  - Update timestamps on confirmed entities                   │
+   │  - Save delta findings for Briefing page                     │
+   └──────────────────────────────────────────────────────────────┘
+```
+
+### Entity Types Tracked
+
+| Type          | Description                              | Example Details                          |
+|---------------|------------------------------------------|------------------------------------------|
+| EXECUTIVE     | Key personnel                            | title, since, previous_role              |
+| CUSTOMER      | Organizations buying from company        | contract_value, region, product          |
+| CONTRACT      | Specific contract awards                 | value, customer, award_date, duration    |
+| TECHNOLOGY    | Key technologies & capabilities          | category, status, description            |
+| PRODUCT       | Specific products or product lines       | category, status, customers              |
+| PARTNER       | Strategic partners, JVs                  | partner_type, since, description         |
+| COMPETITOR    | Direct competitors mentioned             | competitive_area                          |
+| ACQUISITION   | M&A activity                             | target, value, date, status              |
+| FINANCIAL     | Key financial metrics                    | metric_type, value, period, trend        |
+| FACILITY      | Manufacturing sites, R&D centers         | location, type, size                     |
+| CERTIFICATION | Certifications & clearances              | certifying_body, scope, expiration       |
+| LAWSUIT       | Legal matters                            | opposing_party, type, status, value      |
+| STRATEGY      | Strategic initiatives                    | category, timeline, description          |
+
+### Change Types
+
+| Type         | Description                                  | Typical Importance |
+|--------------|----------------------------------------------|-------------------|
+| NEW          | Entity not present in KB                     | NOTABLE           |
+| UPDATED      | Entity exists but values changed             | NOTABLE-CRITICAL  |
+| CONTRADICTED | New info contradicts existing KB             | CRITICAL          |
+| CONFIRMED    | Entity matches existing KB (no change)       | MINOR             |
+
+### Example: Cross-Report Intelligence
+
+```
+Research Run 1: "Elbit M&A Activity" (January)
+  → Extracts: CEO: Bezhalel Machlis, Acquisition: Sparton Corp
+  → KB Status: Empty
+  → All entities marked as NEW
+
+Research Run 2: "Elbit Executive Changes" (February)
+  → Extracts: CEO: Bezhalel Machlis, CFO: Yossi Gaspar
+  → KB Status: Has CEO from Run 1
+  → Findings:
+    - CEO: CONFIRMED (already knew this)
+    - CFO: NEW (first time seeing CFO)
+
+Research Run 3: "Elbit Tech Trends" (March)
+  → Extracts: CEO: "New Person", Technology: ARCAS AI Sight
+  → KB Status: Has CEO as Bezhalel Machlis
+  → Findings:
+    - CEO: CONTRADICTED (CRITICAL! CEO changed!)
+    - ARCAS: NEW
+```
+
+This cross-report intelligence means:
+- You can run ANY prompt type on a company
+- The system remembers ALL entities from ALL previous reports
+- If an M&A report mentions a new executive, it will be flagged
+- If a Tech report shows a CEO change, it will be flagged as CRITICAL
+
+---
+
+## Intelligence Briefing
+
+The Briefing page (`/briefing`) shows a summary of all detected changes across all companies over a selected time period.
+
+### What's Displayed
+
+1. **Summary Cards**
+   - Total findings
+   - Critical count (requiring attention)
+   - Notable count
+   - Companies tracked
+
+2. **Type Breakdown**
+   - NEW: Information not previously in KB
+   - UPDATED: Changed values
+   - CONTRADICTED: Conflicting information
+
+3. **Critical Findings Section**
+   - Red-highlighted urgent items
+   - Executive changes, major contract losses, etc.
+
+4. **Findings by Company**
+   - Grouped view of all changes
+   - Click "View Timeline" for full company history
+
+### Data Source
+
+The Briefing page pulls from `/api/delta/briefing?days=N` which:
+1. Loads all delta reports from the specified period
+2. Aggregates findings across all companies
+3. Sorts by importance (CRITICAL first)
+
+---
+
+## API Endpoints
+
+### Research
+
+| Endpoint                          | Method | Description                     |
+|-----------------------------------|--------|---------------------------------|
+| `/api/research`                   | POST   | Start new research job          |
+| `/api/research`                   | GET    | List recent jobs                |
+| `/api/research/{job_id}`          | GET    | Get job status                  |
+| `/api/research/{job_id}/export/{provider}` | GET | Export provider result |
+| `/api/research/{job_id}/export/combined` | GET | Export combined report    |
+| `/api/research/providers`         | GET    | Get provider availability       |
+
+### Delta / Briefing
+
+| Endpoint                          | Method | Description                     |
+|-----------------------------------|--------|---------------------------------|
+| `/api/delta/briefing?days=N`      | GET    | Get intelligence briefing       |
+| `/api/delta/findings`             | GET    | Get all findings with filters   |
+| `/api/delta/company/{company}/timeline` | GET | Company change timeline   |
+
+### Prompts
+
+| Endpoint                          | Method | Description                     |
+|-----------------------------------|--------|---------------------------------|
+| `/api/prompts`                    | GET    | List all prompts by category    |
+| `/api/prompts/{prompt_id}`        | GET    | Get specific prompt             |
+
+### Sources
+
+| Endpoint                          | Method | Description                     |
+|-----------------------------------|--------|---------------------------------|
+| `/api/sources`                    | GET    | List curated intel sources      |
+| `/api/sources/search?q=...`       | GET    | Search sources                  |
+
+---
+
+## Data Storage
+
+### Knowledge Base Files
+
+Location: `backend/knowledge_base/{company_name}.json`
+
+```json
+{
+  "company": "Elbit Systems",
+  "entities": [
+    {
+      "id": "uuid-...",
+      "entity_type": "executive",
+      "name": "Bezhalel Machlis",
+      "details": {
+        "title": "CEO",
+        "since": "2021"
+      },
+      "source_report_id": "job-uuid",
+      "source_date": "2025-01-15T...",
+      "last_updated": "2025-02-20T...",
+      "confidence": "HIGH"
+    }
+  ],
+  "last_updated": "2025-02-20T...",
+  "total_reports_processed": 5,
+  "report_ids_processed": ["job-1", "job-2", ...]
+}
+```
+
+### Delta Report Files
+
+Location: `reports/.delta/{job_id}.json`
+
+```json
+{
+  "id": "delta-uuid",
+  "job_id": "research-job-uuid",
+  "company": "Elbit Systems",
+  "prompt_id": "executive_movements",
+  "findings": [
+    {
+      "id": "finding-uuid",
+      "finding_text": "Executive: Jane Doe - New CFO appointment",
+      "finding_type": "NEW",
+      "importance": "CRITICAL",
+      "category": "Executive",
+      "created_at": "2025-02-20T..."
+    }
+  ],
+  "summary": "Found 3 delta findings. 1 CRITICAL items require attention.",
+  "created_at": "2025-02-20T..."
+}
+```
+
+---
 
 ## Research Prompts
 
-Located in `prompts/` directory:
+Located in `prompts/` directory. Use `[COMPANY NAME]` as a placeholder.
 
-| Prompt | Purpose |
-|--------|---------|
-| `leadership_team_dynamics` | Executive movements, departures, board changes |
-| `recent_contract_awards` | Government contracts, military programs |
-| `partnerships_and_ma_activity` | Joint ventures, acquisitions |
-| `program_performance` | Product performance, technical capabilities |
-| `recent_investments_and_new_product_releases` | R&D, new products, funding |
-| `future_investments_and_strategic_direction` | Strategic plans, roadmaps |
-| `comprehensive_cross_competitor_synthesis` | Holistic competitive analysis |
+| Prompt                              | Purpose                                |
+|-------------------------------------|----------------------------------------|
+| `executive_movements`               | Leadership changes, departures, hires  |
+| `contract_awards`                   | Government contracts, military programs|
+| `ma_activity`                       | Mergers, acquisitions, divestitures    |
+| `technology_trends`                 | R&D, new products, capabilities        |
+| `financial_performance`             | Revenue, margins, backlog              |
+| `strategic_direction`               | Future plans, roadmaps, investments    |
+| `org_structure_and_hiring`          | Org changes, key hires                 |
+| `multi_primary_competitors_matrix`  | Cross-competitor comparison            |
 
 ### Adding New Prompts
 
-Create a markdown file in `prompts/` using `[COMPANY NAME]` as a placeholder:
+Create a markdown file in `prompts/`:
 
 ```markdown
 # Research Topic
@@ -120,174 +487,62 @@ Research [COMPANY NAME] for the following information:
 1. First research area
 2. Second research area
 ...
+
+Focus on recent developments from the past 6 months.
+Provide specific names, dates, and values where available.
 ```
 
-## Cross-Validation Synthesis
-
-When enabled, the synthesis agent (Claude Opus 4.5) analyzes all provider results and:
-
-1. **Identifies agreements** - Facts confirmed by multiple providers (HIGH confidence)
-2. **Flags single-source findings** - Information from only one provider (MEDIUM confidence)
-3. **Highlights discrepancies** - Where providers contradict each other (CONFLICT)
-4. **Calculates agreement score** - 0-100% measure of provider consensus
-
-### Confidence Levels
-
-- `[HIGH]` - 3+ providers agree with citations
-- `[MEDIUM]` - 2 providers agree OR 1 provider with strong citations
-- `[LOW]` - Single provider, no citations
-- `[CONFLICT]` - Providers disagree
-
-## Cost Tracking
-
-The platform tracks API costs in real-time:
-
-**Approximate Pricing (per 1M tokens):**
-
-| Provider | Input | Output |
-|----------|-------|--------|
-| Anthropic Claude Opus 4.5 | $15.00 | $75.00 |
-| OpenAI GPT-5.1 | $2.50 | $10.00 |
-| Google Gemini 3 Pro | $1.25 | $5.00 |
-| xAI Grok 4 | $3.00 | $15.00 |
-| Perplexity Sonar | $3.00 | $15.00 |
-
-Additional costs:
-- Anthropic web search: $10 per 1,000 searches
-- xAI search: $0.025 per source
-
-Session warning threshold: $5.00
-
-## Report Output
-
-Reports are saved to `reports/{company}/{timestamp}/`:
-
-```
-reports/
-└── Elbit Systems/
-    └── 2025-11-28_143022/
-        ├── leadership_team_dynamics-openai.md
-        ├── leadership_team_dynamics-anthropic.md
-        ├── leadership_team_dynamics-google.md
-        ├── leadership_team_dynamics-xai.md
-        ├── leadership_team_dynamics-SYNTHESIZED.md
-        └── metadata.txt
-```
-
-### Export Formats
-
-- **Markdown** - Raw with YAML frontmatter
-- **HTML** - Styled with Red 6 branding
-- **DOCX** - Microsoft Word document
-- **PDF** - Professional PDF (requires WeasyPrint)
-
-## CLI Usage
-
-```bash
-# List available companies and prompts
-python run_research.py --list
-
-# Basic research
-python run_research.py "BAE Systems" recent_contract_awards
-
-# Deep research with specific providers
-python run_research.py "Thales" partnerships_and_ma_activity --mode deep --providers anthropic google
-
-# All providers
-python run_research.py "Lockheed Martin" leadership_team_dynamics --mode deep
-```
-
-## Configuration Files
-
-### companies.csv
-
-```csv
-company,website
-Elbit Systems,https://www.elbitsystems.com
-BAE Systems,https://www.baesystems.com
-Thales,https://www.thalesgroup.com
-```
-
-### .streamlit/config.toml
-
-UI theme configuration (Red 6 branding colors).
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                  Streamlit UI / CLI                  │
-└─────────────────────────┬───────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────┐
-│                  Research Engine                     │
-│         (Parallel execution via ThreadPool)          │
-└───┬─────────┬─────────┬─────────┬─────────┬─────────┘
-    │         │         │         │         │
-    ▼         ▼         ▼         ▼         ▼
-┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────────┐
-│OpenAI │ │Anthro │ │Google │ │ xAI   │ │Perplexity │
-│GPT5.1 │ │Claude │ │Gemini │ │Grok 4 │ │  Sonar    │
-└───┬───┘ └───┬───┘ └───┬───┘ └───┬───┘ └─────┬─────┘
-    │         │         │         │           │
-    └─────────┴─────────┴─────────┴───────────┘
-                          │
-                          ▼
-              ┌───────────────────────┐
-              │   Synthesis Agent     │
-              │   (Cross-validation)  │
-              └───────────┬───────────┘
-                          │
-                          ▼
-              ┌───────────────────────┐
-              │   Report Generation   │
-              │   (MD/HTML/DOCX/PDF)  │
-              └───────────────────────┘
-```
-
-## Adding a New Provider
-
-1. Create `api/{provider}_research.py`
-2. Extend `BaseResearcher` class
-3. Implement `basic_research()` and `deep_research()` methods
-4. Return `ResearchResult` objects
-5. Add to `ResearchEngine.setup_researchers()` in `research_engine.py`
-6. Add pricing to `cost_calculator.py`
+---
 
 ## Troubleshooting
 
-### Provider shows as unavailable
+### Provider shows as "Unavailable"
 - Check API key in `.env` file
-- Ensure key doesn't start with placeholder text (e.g., `sk-your-...`)
+- Ensure key doesn't start with placeholder text
 - Verify API key is valid and has credits
 
-### Google usage metadata error
-- Fixed in recent update - usage objects are handled correctly
+### Briefing page is empty
+- Run research jobs first - delta analysis runs automatically after each job
+- Check that ANTHROPIC_API_KEY is set (required for entity extraction)
+- Look at backend logs for errors during delta analysis
 
-### PDF export fails
-- WeasyPrint requires system dependencies
-- Install via: `brew install weasyprint` (macOS) or system package manager
+### Knowledge base not updating
+- Ensure research jobs complete successfully
+- Check `/backend/knowledge_base/` directory for JSON files
+- Review backend logs for extraction errors
 
-### High costs
+### High API costs
 - Use Basic mode for initial research
 - Select fewer providers
-- Monitor session cost in sidebar
-- Reset session to clear cost tracking
+- Combined mode uses additional API calls for synthesis
+
+---
 
 ## Development
 
 ### Running Tests
 ```bash
+# From project root
 python -m pytest tests/
 ```
 
-### Code Structure
-- `api/base_researcher.py` - Interface definition
-- `api/research_engine.py` - Orchestration logic
-- `api/*_research.py` - Provider implementations
-- `api/synthesis_agent.py` - Cross-validation
-- `app.py` - UI components and flow
+### Backend Hot Reload
+```bash
+cd backend
+source ../venv/bin/activate  # Activate venv from root
+uvicorn main:app --reload --port 8000
+```
+
+### Frontend Hot Reload
+```bash
+cd frontend
+npm run dev
+```
+
+### Viewing API Documentation
+Open http://localhost:8000/docs for interactive Swagger UI
+
+---
 
 ## License
 

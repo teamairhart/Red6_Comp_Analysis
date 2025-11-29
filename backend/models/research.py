@@ -47,6 +47,16 @@ class ProviderResult(BaseModel):
     error: Optional[str] = None
 
 
+class SynthesizedReport(BaseModel):
+    """A synthesized report combining multiple model outputs"""
+    content: str  # The full markdown content
+    models_used: list[str]  # Which models contributed
+    high_confidence_findings: list[str] = []  # Points where models agreed
+    areas_of_disagreement: list[str] = []  # Points where models conflicted
+    unique_insights: dict[str, list[str]] = {}  # model -> unique findings
+    generated_at: Optional[datetime] = None
+
+
 class ResearchJob(BaseModel):
     """A research job"""
     id: str
@@ -55,9 +65,10 @@ class ResearchJob(BaseModel):
     prompt_name: str
     status: ResearchStatus
     providers: list[str]
-    mode: str
+    mode: str  # "basic", "deep", or "combined"
     progress: int = 0  # 0-100 percentage
     results: list[ProviderResult] = []
+    synthesized_report: Optional[SynthesizedReport] = None  # Combined report when mode=combined
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None

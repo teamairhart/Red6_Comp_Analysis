@@ -43,73 +43,90 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Red 6 Brand Colors:
+   Primary Red: #DC2626 (red-600)
+   Dark Red: #B91C1C (red-700)
+   Black: #0A0A0A
+   Dark Gray: #171717 (neutral-900)
+   Medium Gray: #262626 (neutral-800)
+   Light Gray: #404040 (neutral-700)
+*/
+
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.5rem;
+  /* Light mode - clean white with red accents */
+  --background: #FAFAFA;
+  --foreground: #0A0A0A;
+  --card: #FFFFFF;
+  --card-foreground: #0A0A0A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A0A0A;
+  /* Primary is RED */
+  --primary: #DC2626;
+  --primary-foreground: #FFFFFF;
+  /* Secondary is dark gray */
+  --secondary: #171717;
+  --secondary-foreground: #FFFFFF;
+  --muted: #F5F5F5;
+  --muted-foreground: #525252;
+  --accent: #FEE2E2;
+  --accent-foreground: #991B1B;
+  --destructive: #DC2626;
+  --border: #E5E5E5;
+  --input: #E5E5E5;
+  --ring: #DC2626;
+  /* Charts use red spectrum */
+  --chart-1: #DC2626;
+  --chart-2: #EF4444;
+  --chart-3: #F87171;
+  --chart-4: #171717;
+  --chart-5: #404040;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0A0A0A;
+  --sidebar-primary: #DC2626;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FEF2F2;
+  --sidebar-accent-foreground: #991B1B;
+  --sidebar-border: #E5E5E5;
+  --sidebar-ring: #DC2626;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Dark mode - black/dark gray with red accents */
+  --background: #0A0A0A;
+  --foreground: #FAFAFA;
+  --card: #171717;
+  --card-foreground: #FAFAFA;
+  --popover: #171717;
+  --popover-foreground: #FAFAFA;
+  /* Primary stays RED */
+  --primary: #DC2626;
+  --primary-foreground: #FFFFFF;
+  /* Secondary is lighter for contrast */
+  --secondary: #262626;
+  --secondary-foreground: #FAFAFA;
+  --muted: #262626;
+  --muted-foreground: #A3A3A3;
+  --accent: #450A0A;
+  --accent-foreground: #FCA5A5;
+  --destructive: #EF4444;
+  --border: #262626;
+  --input: #262626;
+  --ring: #DC2626;
+  /* Charts use red spectrum */
+  --chart-1: #EF4444;
+  --chart-2: #DC2626;
+  --chart-3: #B91C1C;
+  --chart-4: #F87171;
+  --chart-5: #FCA5A5;
+  --sidebar: #0A0A0A;
+  --sidebar-foreground: #FAFAFA;
+  --sidebar-primary: #DC2626;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1C1917;
+  --sidebar-accent-foreground: #FCA5A5;
+  --sidebar-border: #262626;
+  --sidebar-ring: #DC2626;
 }
 
 @layer base {
@@ -117,6 +134,137 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
+
+  /* Better base typography */
+  h1 {
+    @apply text-3xl font-bold tracking-tight lg:text-4xl;
+  }
+  h2 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  h3 {
+    @apply text-xl font-semibold;
+  }
+  h4 {
+    @apply text-lg font-medium;
+  }
+  p {
+    @apply text-base leading-7;
+  }
+}
+
+/* Custom utility classes for Red 6 branding */
+@layer utilities {
+  /* Text gradient for headers */
+  .text-gradient-red {
+    @apply bg-gradient-to-r from-red-600 to-red-500 bg-clip-text text-transparent;
+  }
+
+  /* Glow effects */
+  .glow-red {
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.3);
+  }
+
+  .glow-red-sm {
+    box-shadow: 0 0 10px rgba(220, 38, 38, 0.2);
+  }
+
+  /* Card hover effects */
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-lg hover:shadow-red-500/10 hover:border-red-500/30;
+  }
+
+  /* Button glow on hover */
+  .btn-glow:hover {
+    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+  }
+
+  /* Subtle red accent border */
+  .border-accent-red {
+    @apply border-l-4 border-l-red-600;
+  }
+
+  /* Badge styles */
+  .badge-critical {
+    @apply bg-red-600 text-white font-medium;
+  }
+
+  .badge-notable {
+    @apply bg-amber-500 text-white font-medium;
+  }
+
+  .badge-minor {
+    @apply bg-neutral-500 text-white font-medium;
+  }
+
+  /* Status indicators */
+  .status-running {
+    @apply bg-red-500 animate-pulse;
+  }
+
+  .status-completed {
+    @apply bg-emerald-500;
+  }
+
+  .status-failed {
+    @apply bg-red-600;
+  }
+
+  .status-pending {
+    @apply bg-neutral-400;
+  }
+}
+
+/* Custom scrollbar for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #171717;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #525252;
+}
+
+/* Light mode scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F5F5F5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4D4D4;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A3A3A3;
+}
+
+/* Animation for pulsing elements */
+@keyframes pulse-red {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(220, 38, 38, 0);
+  }
+}
+
+.pulse-red {
+  animation: pulse-red 2s infinite;
 }

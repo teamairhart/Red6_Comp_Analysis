@@ -252,7 +252,7 @@ class TestMultiProviderResearch:
 
         results = engine.run_research(
             "Test Company",
-            "leadership_team_dynamics",
+            "executive_movements",
             mode="basic",
             providers=available_providers[:2]  # Use at most 2 to limit costs
         )

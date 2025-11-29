@@ -22,14 +22,14 @@ class TestResearchJob:
         """Test creating a research job."""
         job = ResearchJob(
             company="BAE Systems",
-            prompt_name="leadership_team_dynamics",
+            prompt_name="executive_movements",
             prompt_content="Research BAE Systems for...",
             mode="basic",
             output_format="markdown"
         )
 
         assert job.company == "BAE Systems"
-        assert job.prompt_name == "leadership_team_dynamics"
+        assert job.prompt_name == "executive_movements"
         assert job.mode == "basic"
         assert job.output_format == "markdown"
 
@@ -112,8 +112,8 @@ class TestResearchEnginePrompts:
         prompts = engine.get_prompts()
 
         assert len(prompts) == 1
-        assert prompts[0]["name"] == "leadership_team_dynamics"
-        assert prompts[0]["filename"] == "leadership_team_dynamics.md"
+        assert prompts[0]["name"] == "executive_movements"
+        assert prompts[0]["filename"] == "executive_movements.md"
 
     def test_get_prompts_multiple(self, tmp_path):
         """Test loading multiple prompts."""
@@ -140,7 +140,7 @@ class TestResearchEnginePrompts:
         (tmp_path / "companies.csv").write_text("company,website\n")
 
         engine = ResearchEngine(project_root=str(tmp_path))
-        content = engine.load_prompt("leadership_team_dynamics")
+        content = engine.load_prompt("executive_movements")
 
         assert "[COMPANY NAME]" in content
         assert "executive changes" in content

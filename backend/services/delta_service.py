@@ -523,3 +523,95 @@ def load_all_delta_reports() -> None:
             _delta_reports[report.id] = report
         except Exception as e:
             logger.error(f"Failed to load delta report {file_path}: {e}")
+
+
+def run_knowledge_base_delta(
+    company: str,
+    report_content: str,
+    job_id: str,
+    prompt_id: str,
+) -> Optional[DeltaReport]:
+    """
+    Run delta analysis using the knowledge base approach.
+
+    This extracts entities from the report, compares against the company's
+    knowledge base, and returns detected changes as a DeltaReport.
+
+    Args:
+        company: Company name
+        report_content: Full text of the research report
+        job_id: ID of the research job
+        prompt_id: Prompt used for research
+
+    Returns:
+        DeltaReport with findings, or None if analysis failed
+    """
+    from services.knowledge_base_service import process_report_for_knowledge_base
+    from models.knowledge_base import EntityChange
+
+    logger.info(f"Running knowledge base delta analysis for {company}")
+
+    try:
+        # Process report through knowledge base system
+        result = process_report_for_knowledge_base(
+            company=company,
+            report_content=report_content,
+            report_id=job_id,
+        )
+
+        # Convert EntityChanges to DeltaFindings
+        findings = []
+        for change in result.changes_detected:
+            # Map change_type to FindingType
+            if change.change_type == "NEW":
+                finding_type = FindingType.NEW
+            elif change.change_type == "UPDATED":
+                finding_type = FindingType.UPDATED
+            elif change.change_type == "CONTRADICTED":
+                finding_type = FindingType.CONTRADICTED
+            else:
+                continue  # Skip CONFIRMED items
+
+            # Map importance
+            if change.importance == "CRITICAL":
+                importance = Importance.CRITICAL
+            elif change.importance == "NOTABLE":
+                importance = Importance.NOTABLE
+            else:
+                importance = Importance.MINOR
+
+            finding = DeltaFinding(
+                id=str(uuid.uuid4()),
+                report_id=job_id,
+                company=company,
+                finding_text=f"{change.entity_type.value.title()}: {change.entity_name} - {change.explanation}",
+                finding_type=finding_type,
+                confidence=Confidence.HIGH,  # KB-based analysis is high confidence
+                importance=importance,
+                category=change.entity_type.value.title(),
+                previous_text=change.old_value,
+                source_url=None,
+                created_at=datetime.utcnow(),
+            )
+            findings.append(finding)
+
+        # Generate summary
+        summary = _generate_summary(findings)
+
+        delta_report = DeltaReport(
+            id=str(uuid.uuid4()),
+            job_id=job_id,
+            company=company,
+            prompt_id=prompt_id,
+            findings=findings,
+            summary=summary,
+            compared_to_reports=[],  # KB-based doesn't track specific reports
+            created_at=datetime.utcnow(),
+        )
+
+        logger.info(f"KB delta analysis complete: {len(findings)} findings for {company}")
+        return delta_report
+
+    except Exception as e:
+        logger.error(f"Knowledge base delta analysis failed for {company}: {e}")
+        return None

@@ -8,6 +8,7 @@ from models.research import (
     ResearchStatus,
     ResearchProgress,
     ProviderResult,
+    SynthesizedReport,
 )
 from services.research_service import get_research_service
 from services.source_service import (
@@ -17,7 +18,8 @@ from services.source_service import (
     match_citations_to_sources,
     update_source_hit_counts,
 )
-from services.delta_service import run_delta_analysis, save_delta_report
+from services.delta_service import run_delta_analysis, run_knowledge_base_delta, save_delta_report
+from services.synthesis_service import get_synthesis_service
 from datetime import datetime
 import uuid
 import asyncio
@@ -27,19 +29,74 @@ import logging
 import traceback
 import threading
 import markdown
+import io
+import re
+import json
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 
-# In-memory job storage (will be replaced with database later)
+# Storage directory for persisting jobs
+JOBS_DIR = Path(__file__).parent.parent / "data" / "jobs"
+JOBS_DIR.mkdir(parents=True, exist_ok=True)
+
+# In-memory job storage (loaded from disk on startup)
 jobs: Dict[str, ResearchJob] = {}
+
+
+def _save_job_to_disk(job: ResearchJob):
+    """Save a job to disk for persistence."""
+    try:
+        job_file = JOBS_DIR / f"{job.id}.json"
+        job_data = job.model_dump(mode='json')
+        # Convert datetime objects to ISO strings
+        for key in ['created_at', 'updated_at', 'completed_at']:
+            if job_data.get(key):
+                if isinstance(job_data[key], datetime):
+                    job_data[key] = job_data[key].isoformat()
+        job_file.write_text(json.dumps(job_data, indent=2, default=str))
+        logger.debug(f"Saved job {job.id} to disk")
+    except Exception as e:
+        logger.error(f"Failed to save job {job.id} to disk: {e}")
+
+
+def _load_jobs_from_disk():
+    """Load all jobs from disk on startup."""
+    global jobs
+    loaded_count = 0
+    for job_file in JOBS_DIR.glob("*.json"):
+        try:
+            job_data = json.loads(job_file.read_text())
+            # Convert ISO strings back to datetime
+            for key in ['created_at', 'updated_at', 'completed_at']:
+                if job_data.get(key):
+                    job_data[key] = datetime.fromisoformat(job_data[key])
+            job = ResearchJob(**job_data)
+            jobs[job.id] = job
+            loaded_count += 1
+        except Exception as e:
+            logger.error(f"Failed to load job from {job_file}: {e}")
+    logger.info(f"Loaded {loaded_count} jobs from disk")
+
+
+# Load existing jobs on module import
+_load_jobs_from_disk()
 
 # WebSocket connections for progress updates
 active_connections: Dict[str, WebSocket] = {}
 
 # Thread pool for running research tasks
 _executor = ThreadPoolExecutor(max_workers=4)
+
+
+@router.get("/providers")
+async def get_providers():
+    """Get available AI providers and their status."""
+    service = get_research_service()
+    availability = service.get_available_providers()
+    return {"providers": availability}
 
 
 def _run_research_sync(job_id: str):
@@ -121,6 +178,43 @@ def _run_research_sync(job_id: str):
                 update_source_hit_counts(matched_source_ids)
                 logger.info(f"Matched {len(matched_source_ids)} curated sources: {matched_source_ids}")
 
+        # If mode is "combined", synthesize the results into a unified report
+        if job.mode == "combined" and len(job.results) >= 2:
+            job.progress = 80
+            logger.info(f"Synthesizing {len(job.results)} model outputs for job {job_id}")
+            try:
+                synthesis_service = get_synthesis_service()
+
+                # Collect successful model outputs
+                model_outputs = {}
+                for pr in job.results:
+                    if pr.status == ResearchStatus.COMPLETED and pr.content:
+                        model_outputs[pr.provider] = pr.content
+
+                if len(model_outputs) >= 2:
+                    # Run synthesis
+                    synthesis_result = synthesis_service.synthesize(
+                        company=job.company,
+                        prompt_name=job.prompt_name,
+                        model_outputs=model_outputs,
+                    )
+
+                    # Store the synthesized report
+                    job.synthesized_report = SynthesizedReport(
+                        content=synthesis_result.full_markdown,
+                        models_used=synthesis_result.models_used,
+                        high_confidence_findings=synthesis_result.high_confidence_findings,
+                        areas_of_disagreement=synthesis_result.areas_of_disagreement,
+                        unique_insights=synthesis_result.unique_insights,
+                        generated_at=synthesis_result.generated_at,
+                    )
+                    logger.info(f"Synthesis complete for job {job_id}")
+                else:
+                    logger.warning(f"Not enough successful model outputs for synthesis in job {job_id}")
+            except Exception as synth_err:
+                logger.error(f"Synthesis failed for job {job_id}: {synth_err}\n{traceback.format_exc()}")
+                # Don't fail the job, just skip synthesis
+
         # Save results to disk
         save_info = service.save_results(results, job.company, job.prompt_name)
         job.result_file = save_info.get("output_dir")
@@ -133,9 +227,9 @@ def _run_research_sync(job_id: str):
 
         logger.info(f"Research job {job_id} completed successfully")
 
-        # Run delta analysis in background (non-blocking)
+        # Run knowledge base delta analysis (extracts entities & detects changes)
         try:
-            # Combine all successful results for delta analysis
+            # Combine all successful results for analysis
             combined_content = []
             for pr in job.results:
                 if pr.content:
@@ -143,25 +237,32 @@ def _run_research_sync(job_id: str):
 
             if combined_content:
                 full_content = "\n\n---\n\n".join(combined_content)
-                delta_report = run_delta_analysis(
+
+                # Use the new knowledge base approach
+                # This extracts entities, compares to the company's knowledge base,
+                # and returns changes as delta findings
+                delta_report = run_knowledge_base_delta(
                     company=job.company,
-                    new_report_content=full_content,
+                    report_content=full_content,
                     job_id=job_id,
                     prompt_id=job.prompt_id,
-                    lookback_days=90,
                 )
                 if delta_report:
                     save_delta_report(delta_report)
                     job.delta_report_id = delta_report.id
-                    logger.info(f"Delta analysis complete for job {job_id}: {len(delta_report.findings)} findings")
+                    logger.info(f"Knowledge base delta complete for job {job_id}: {len(delta_report.findings)} changes detected")
         except Exception as delta_err:
-            logger.warning(f"Delta analysis failed for job {job_id}: {delta_err}")
+            logger.warning(f"Knowledge base delta analysis failed for job {job_id}: {delta_err}")
+
+        # Save completed job to disk
+        _save_job_to_disk(job)
 
     except Exception as e:
         logger.error(f"Research job {job_id} failed: {e}\n{traceback.format_exc()}")
         job.status = ResearchStatus.FAILED
         job.error = str(e)
         job.updated_at = datetime.utcnow()
+        _save_job_to_disk(job)  # Save failed job to disk too
 
 
 @router.post("", response_model=ResearchResponse)
@@ -184,6 +285,7 @@ async def start_research(request: ResearchRequest, background_tasks: BackgroundT
     )
 
     jobs[job_id] = job
+    _save_job_to_disk(job)  # Persist to disk
 
     # Start the research job in background thread
     _executor.submit(_run_research_sync, job_id)
@@ -243,11 +345,322 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
             del active_connections[job_id]
 
 
+def generate_professional_html(content: str, company: str, prompt_name: str, completed_at: str, provider: str) -> str:
+    """Generate a professionally styled HTML document that looks like a PDF report."""
+    html_body = markdown.markdown(content, extensions=['tables', 'fenced_code', 'toc'])
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{company} - {prompt_name} | Competitive Intelligence Report</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&display=swap');
+
+        :root {{
+            --primary-color: #1e40af;
+            --secondary-color: #3b82f6;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --bg-light: #f9fafb;
+        }}
+
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+
+        @page {{
+            size: A4;
+            margin: 2cm;
+        }}
+
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 11pt;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: white;
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 40px;
+        }}
+
+        /* Cover/Header Section */
+        .report-header {{
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+        }}
+
+        .report-header .logo {{
+            font-size: 14pt;
+            font-weight: 700;
+            color: var(--primary-color);
+            letter-spacing: -0.5px;
+            margin-bottom: 30px;
+        }}
+
+        .report-header h1 {{
+            font-family: 'Merriweather', Georgia, serif;
+            font-size: 28pt;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            line-height: 1.2;
+        }}
+
+        .report-header .subtitle {{
+            font-size: 14pt;
+            color: var(--secondary-color);
+            font-weight: 500;
+            margin-bottom: 20px;
+        }}
+
+        .report-meta {{
+            display: flex;
+            gap: 30px;
+            font-size: 10pt;
+            color: var(--text-secondary);
+        }}
+
+        .report-meta div {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .report-meta strong {{
+            color: var(--text-primary);
+            font-weight: 600;
+        }}
+
+        /* Content Styling */
+        .report-content {{
+            page-break-inside: auto;
+        }}
+
+        h1 {{
+            font-family: 'Merriweather', Georgia, serif;
+            font-size: 20pt;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 35px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border-color);
+            page-break-after: avoid;
+        }}
+
+        h2 {{
+            font-family: 'Merriweather', Georgia, serif;
+            font-size: 16pt;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 30px 0 15px;
+            page-break-after: avoid;
+        }}
+
+        h3 {{
+            font-size: 13pt;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 25px 0 12px;
+            page-break-after: avoid;
+        }}
+
+        h4 {{
+            font-size: 11pt;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin: 20px 0 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+
+        p {{
+            margin-bottom: 14px;
+            text-align: justify;
+            orphans: 3;
+            widows: 3;
+        }}
+
+        ul, ol {{
+            margin: 15px 0 15px 25px;
+        }}
+
+        li {{
+            margin-bottom: 8px;
+        }}
+
+        li::marker {{
+            color: var(--secondary-color);
+        }}
+
+        /* Tables */
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 10pt;
+            page-break-inside: avoid;
+        }}
+
+        thead {{
+            background: var(--primary-color);
+            color: white;
+        }}
+
+        th {{
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 9pt;
+            letter-spacing: 0.5px;
+        }}
+
+        td {{
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+        }}
+
+        tbody tr:nth-child(even) {{
+            background: var(--bg-light);
+        }}
+
+        tbody tr:hover {{
+            background: #f3f4f6;
+        }}
+
+        /* Blockquotes */
+        blockquote {{
+            border-left: 4px solid var(--secondary-color);
+            background: var(--bg-light);
+            margin: 20px 0;
+            padding: 15px 20px;
+            font-style: italic;
+            color: var(--text-secondary);
+        }}
+
+        blockquote p:last-child {{
+            margin-bottom: 0;
+        }}
+
+        /* Code */
+        code {{
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            background: var(--bg-light);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10pt;
+        }}
+
+        pre {{
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }}
+
+        pre code {{
+            background: none;
+            padding: 0;
+            color: inherit;
+        }}
+
+        /* Links */
+        a {{
+            color: var(--secondary-color);
+            text-decoration: none;
+        }}
+
+        a:hover {{
+            text-decoration: underline;
+        }}
+
+        /* Horizontal Rule */
+        hr {{
+            border: none;
+            border-top: 2px solid var(--border-color);
+            margin: 30px 0;
+        }}
+
+        /* Strong/Bold */
+        strong {{
+            font-weight: 600;
+            color: var(--text-primary);
+        }}
+
+        /* Emphasis */
+        em {{
+            font-style: italic;
+        }}
+
+        /* Footer */
+        .report-footer {{
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid var(--border-color);
+            font-size: 9pt;
+            color: var(--text-secondary);
+            text-align: center;
+        }}
+
+        /* Print Styles */
+        @media print {{
+            body {{
+                padding: 0;
+                max-width: none;
+            }}
+
+            .report-header {{
+                page-break-after: avoid;
+            }}
+
+            h1, h2, h3 {{
+                page-break-after: avoid;
+            }}
+
+            table, figure {{
+                page-break-inside: avoid;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <header class="report-header">
+        <div class="logo">RED 6 COMPETITIVE INTELLIGENCE</div>
+        <h1>{company}</h1>
+        <div class="subtitle">{prompt_name}</div>
+        <div class="report-meta">
+            <div><strong>Generated:</strong> {completed_at}</div>
+            <div><strong>Source:</strong> {provider.upper()}</div>
+            <div><strong>Classification:</strong> Internal Use Only</div>
+        </div>
+    </header>
+
+    <main class="report-content">
+        {html_body}
+    </main>
+
+    <footer class="report-footer">
+        <p>This report was generated by Red 6 Competitive Intelligence Platform</p>
+        <p>Confidential - For Internal Use Only</p>
+    </footer>
+</body>
+</html>"""
+
+
 @router.get("/{job_id}/export/{provider}")
 async def export_result(
     job_id: str,
     provider: str,
-    format: Literal["md", "html", "txt"] = "md"
+    format: Literal["md", "html", "txt", "pdf", "docx"] = "md"
 ):
     """Export a specific provider's result in various formats"""
     if job_id not in jobs:
@@ -268,6 +681,7 @@ async def export_result(
 
     content = result.content
     filename = f"{job.company}_{job.prompt_id}_{provider}"
+    completed_at = job.completed_at.strftime("%B %d, %Y at %I:%M %p") if job.completed_at else "N/A"
 
     if format == "md":
         return Response(
@@ -276,34 +690,271 @@ async def export_result(
             headers={"Content-Disposition": f'attachment; filename="{filename}.md"'}
         )
     elif format == "html":
-        # Convert markdown to HTML
-        html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>{job.company} - {job.prompt_name}</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.6; }}
-        h1 {{ color: #1a1a1a; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }}
-        h2 {{ color: #333; margin-top: 2rem; }}
-        h3 {{ color: #555; }}
-        table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
-        th, td {{ border: 1px solid #ddd; padding: 0.5rem; text-align: left; }}
-        th {{ background-color: #f5f5f5; }}
-        code {{ background-color: #f4f4f4; padding: 0.2rem 0.4rem; border-radius: 3px; }}
-        pre {{ background-color: #f4f4f4; padding: 1rem; overflow-x: auto; border-radius: 5px; }}
-        blockquote {{ border-left: 4px solid #ddd; margin: 1rem 0; padding-left: 1rem; color: #666; }}
-    </style>
-</head>
-<body>
-{markdown.markdown(content, extensions=['tables', 'fenced_code'])}
-</body>
-</html>"""
+        html_content = generate_professional_html(content, job.company, job.prompt_name, completed_at, provider)
         return Response(
             content=html_content,
             media_type="text/html",
             headers={"Content-Disposition": f'attachment; filename="{filename}.html"'}
         )
+    elif format == "pdf":
+        try:
+            from weasyprint import HTML
+            html_content = generate_professional_html(content, job.company, job.prompt_name, completed_at, provider)
+            pdf_buffer = io.BytesIO()
+            HTML(string=html_content).write_pdf(pdf_buffer)
+            pdf_buffer.seek(0)
+            return Response(
+                content=pdf_buffer.getvalue(),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'}
+            )
+        except ImportError:
+            raise HTTPException(status_code=500, detail="PDF export not available. Install weasyprint.")
+        except Exception as e:
+            logger.error(f"PDF generation failed: {e}")
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+    elif format == "docx":
+        try:
+            from docx import Document
+            from docx.shared import Inches, Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.enum.style import WD_STYLE_TYPE
+
+            doc = Document()
+
+            # Set document margins
+            for section in doc.sections:
+                section.top_margin = Inches(1)
+                section.bottom_margin = Inches(1)
+                section.left_margin = Inches(1.25)
+                section.right_margin = Inches(1.25)
+
+            # Add header
+            header_para = doc.add_paragraph()
+            header_run = header_para.add_run("RED 6 COMPETITIVE INTELLIGENCE")
+            header_run.bold = True
+            header_run.font.size = Pt(12)
+            header_run.font.color.rgb = RGBColor(30, 64, 175)
+
+            # Add title
+            title = doc.add_heading(job.company, 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            # Add subtitle
+            subtitle = doc.add_paragraph()
+            subtitle_run = subtitle.add_run(job.prompt_name)
+            subtitle_run.font.size = Pt(14)
+            subtitle_run.font.color.rgb = RGBColor(59, 130, 246)
+
+            # Add metadata
+            meta = doc.add_paragraph()
+            meta.add_run(f"Generated: {completed_at}  |  Source: {provider.upper()}  |  Classification: Internal Use Only")
+            meta.runs[0].font.size = Pt(10)
+            meta.runs[0].font.color.rgb = RGBColor(107, 114, 128)
+
+            doc.add_paragraph()  # Spacer
+
+            # Parse and add content
+            lines = content.split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    doc.add_paragraph()
+                elif line.startswith('# '):
+                    doc.add_heading(line[2:], 1)
+                elif line.startswith('## '):
+                    doc.add_heading(line[3:], 2)
+                elif line.startswith('### '):
+                    doc.add_heading(line[4:], 3)
+                elif line.startswith('#### '):
+                    doc.add_heading(line[5:], 4)
+                elif line.startswith('- ') or line.startswith('* '):
+                    para = doc.add_paragraph(line[2:], style='List Bullet')
+                elif re.match(r'^\d+\.\s', line):
+                    para = doc.add_paragraph(re.sub(r'^\d+\.\s', '', line), style='List Number')
+                elif line.startswith('> '):
+                    para = doc.add_paragraph()
+                    para.paragraph_format.left_indent = Inches(0.5)
+                    run = para.add_run(line[2:])
+                    run.italic = True
+                    run.font.color.rgb = RGBColor(107, 114, 128)
+                else:
+                    # Handle bold and italic in regular text
+                    para = doc.add_paragraph()
+                    # Simple bold/italic handling
+                    text = line
+                    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)  # Remove bold markers
+                    text = re.sub(r'\*(.+?)\*', r'\1', text)  # Remove italic markers
+                    para.add_run(text)
+
+            # Add footer
+            doc.add_paragraph()
+            footer = doc.add_paragraph()
+            footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            footer_run = footer.add_run("Generated by Red 6 Competitive Intelligence Platform - Confidential")
+            footer_run.font.size = Pt(9)
+            footer_run.font.color.rgb = RGBColor(156, 163, 175)
+
+            docx_buffer = io.BytesIO()
+            doc.save(docx_buffer)
+            docx_buffer.seek(0)
+
+            return Response(
+                content=docx_buffer.getvalue(),
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f'attachment; filename="{filename}.docx"'}
+            )
+        except ImportError:
+            raise HTTPException(status_code=500, detail="DOCX export not available. Install python-docx.")
+        except Exception as e:
+            logger.error(f"DOCX generation failed: {e}")
+            raise HTTPException(status_code=500, detail=f"DOCX generation failed: {str(e)}")
+    else:  # txt
+        return Response(
+            content=content,
+            media_type="text/plain",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.txt"'}
+        )
+
+
+@router.get("/{job_id}/export/combined")
+async def export_combined_result(
+    job_id: str,
+    format: Literal["md", "html", "txt", "pdf", "docx"] = "md"
+):
+    """Export the synthesized combined report"""
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    job = jobs[job_id]
+
+    if job.status != ResearchStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+
+    if not job.synthesized_report:
+        raise HTTPException(status_code=404, detail="No synthesized report available for this job")
+
+    content = job.synthesized_report.content
+    filename = f"{job.company}_{job.prompt_id}_combined"
+    completed_at = job.completed_at.strftime("%B %d, %Y at %I:%M %p") if job.completed_at else "N/A"
+    models_str = ", ".join(job.synthesized_report.models_used)
+
+    if format == "md":
+        return Response(
+            content=content,
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.md"'}
+        )
+    elif format == "html":
+        html_content = generate_professional_html(content, job.company, job.prompt_name, completed_at, f"Combined ({models_str})")
+        return Response(
+            content=html_content,
+            media_type="text/html",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.html"'}
+        )
+    elif format == "pdf":
+        try:
+            from weasyprint import HTML
+            html_content = generate_professional_html(content, job.company, job.prompt_name, completed_at, f"Combined ({models_str})")
+            pdf_buffer = io.BytesIO()
+            HTML(string=html_content).write_pdf(pdf_buffer)
+            pdf_buffer.seek(0)
+            return Response(
+                content=pdf_buffer.getvalue(),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'}
+            )
+        except ImportError:
+            raise HTTPException(status_code=500, detail="PDF export not available. Install weasyprint.")
+        except Exception as e:
+            logger.error(f"PDF generation failed: {e}")
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+    elif format == "docx":
+        try:
+            from docx import Document
+            from docx.shared import Inches, Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+            doc = Document()
+
+            for section in doc.sections:
+                section.top_margin = Inches(1)
+                section.bottom_margin = Inches(1)
+                section.left_margin = Inches(1.25)
+                section.right_margin = Inches(1.25)
+
+            header_para = doc.add_paragraph()
+            header_run = header_para.add_run("RED 6 COMPETITIVE INTELLIGENCE - COMBINED ANALYSIS")
+            header_run.bold = True
+            header_run.font.size = Pt(12)
+            header_run.font.color.rgb = RGBColor(30, 64, 175)
+
+            title = doc.add_heading(job.company, 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            subtitle = doc.add_paragraph()
+            subtitle_run = subtitle.add_run(job.prompt_name)
+            subtitle_run.font.size = Pt(14)
+            subtitle_run.font.color.rgb = RGBColor(59, 130, 246)
+
+            meta = doc.add_paragraph()
+            meta.add_run(f"Generated: {completed_at}  |  Models: {models_str}  |  Classification: Internal Use Only")
+            meta.runs[0].font.size = Pt(10)
+            meta.runs[0].font.color.rgb = RGBColor(107, 114, 128)
+
+            doc.add_paragraph()
+
+            lines = content.split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    doc.add_paragraph()
+                elif line.startswith('# '):
+                    doc.add_heading(line[2:], 1)
+                elif line.startswith('## '):
+                    doc.add_heading(line[3:], 2)
+                elif line.startswith('### '):
+                    doc.add_heading(line[4:], 3)
+                elif line.startswith('#### '):
+                    doc.add_heading(line[5:], 4)
+                elif line.startswith('- ') or line.startswith('* '):
+                    doc.add_paragraph(line[2:], style='List Bullet')
+                elif re.match(r'^\d+\.\s', line):
+                    doc.add_paragraph(re.sub(r'^\d+\.\s', '', line), style='List Number')
+                elif line.startswith('> '):
+                    para = doc.add_paragraph()
+                    para.paragraph_format.left_indent = Inches(0.5)
+                    run = para.add_run(line[2:])
+                    run.italic = True
+                    run.font.color.rgb = RGBColor(107, 114, 128)
+                else:
+                    para = doc.add_paragraph()
+                    text = line
+                    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+                    text = re.sub(r'\*(.+?)\*', r'\1', text)
+                    para.add_run(text)
+
+            doc.add_paragraph()
+            footer = doc.add_paragraph()
+            footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            footer_run = footer.add_run("Generated by Red 6 Competitive Intelligence Platform - Confidential")
+            footer_run.font.size = Pt(9)
+            footer_run.font.color.rgb = RGBColor(156, 163, 175)
+
+            docx_buffer = io.BytesIO()
+            doc.save(docx_buffer)
+            docx_buffer.seek(0)
+
+            return Response(
+                content=docx_buffer.getvalue(),
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f'attachment; filename="{filename}.docx"'}
+            )
+        except ImportError:
+            raise HTTPException(status_code=500, detail="DOCX export not available. Install python-docx.")
+        except Exception as e:
+            logger.error(f"DOCX generation failed: {e}")
+            raise HTTPException(status_code=500, detail=f"DOCX generation failed: {str(e)}")
     else:  # txt
         return Response(
             content=content,
