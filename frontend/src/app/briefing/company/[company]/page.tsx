@@ -18,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FindingDetailModal } from "@/components/finding-detail-modal";
+import { API_BASE } from "@/lib/api";
 
 interface DeltaFinding {
   id: string;
@@ -32,8 +34,6 @@ interface DeltaFinding {
   source_url?: string;
   created_at: string;
 }
-
-const API_BASE = "http://localhost:8000";
 
 const IMPORTANCE_STYLES = {
   CRITICAL: "border-l-red-500 bg-red-50/50",
@@ -68,6 +68,13 @@ export default function CompanyTimelinePage() {
   const [error, setError] = useState<string | null>(null);
   const [periodDays, setPeriodDays] = useState("90");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [selectedFinding, setSelectedFinding] = useState<DeltaFinding | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleFindingClick = (finding: DeltaFinding) => {
+    setSelectedFinding(finding);
+    setModalOpen(true);
+  };
 
   useEffect(() => {
     fetchTimeline();
@@ -241,7 +248,8 @@ export default function CompanyTimelinePage() {
                   {findingsByDate[date].map((finding) => (
                     <Card
                       key={finding.id}
-                      className={`border-l-4 ${IMPORTANCE_STYLES[finding.importance]}`}
+                      onClick={() => handleFindingClick(finding)}
+                      className={`border-l-4 cursor-pointer hover:shadow-md transition-all ${IMPORTANCE_STYLES[finding.importance]}`}
                     >
                       <CardContent className="pt-4">
                         <div className="flex items-start justify-between gap-4">
@@ -332,6 +340,13 @@ export default function CompanyTimelinePage() {
           <Button>New Research on {company}</Button>
         </Link>
       </div>
+
+      {/* Finding Detail Modal */}
+      <FindingDetailModal
+        finding={selectedFinding}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </div>
   );
 }

@@ -71,6 +71,45 @@ class ResearchService:
 
         return results
 
+    async def run_research_with_prompt_async(
+        self,
+        company: str,
+        prompt_content: str,
+        mode: str = "basic",
+        providers: List[str] = None,
+    ) -> Dict[str, ResearchResult]:
+        """
+        Run research asynchronously with direct prompt content.
+
+        Args:
+            company: Company name to research
+            prompt_content: The actual prompt text to use
+            mode: "basic" or "deep"
+            providers: List of providers to use
+
+        Returns:
+            Dict mapping provider name to ResearchResult
+        """
+        loop = asyncio.get_event_loop()
+
+        # Filter providers to only available ones
+        available = self.get_available_providers()
+        if providers:
+            providers = [p for p in providers if available.get(p, False)]
+        else:
+            providers = [p for p, ok in available.items() if ok]
+
+        if not providers:
+            raise ValueError("No valid providers available")
+
+        # Run in thread pool to avoid blocking
+        results = await loop.run_in_executor(
+            self._executor,
+            lambda: self.engine.run_research_with_prompt(company, prompt_content, mode, providers)
+        )
+
+        return results
+
     def save_results(
         self,
         results: Dict[str, ResearchResult],

@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { API_BASE } from "@/lib/api";
 
 interface Prompt {
   id: string;
@@ -23,8 +24,6 @@ interface PromptCategory {
   name: string;
   prompts: Prompt[];
 }
-
-const API_BASE = "http://localhost:8000";
 
 export default function PromptsPage() {
   const [categories, setCategories] = useState<PromptCategory[]>([]);

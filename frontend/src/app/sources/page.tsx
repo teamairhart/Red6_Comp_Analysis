@@ -27,6 +27,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { API_BASE } from "@/lib/api";
 
 interface Source {
   id: string;
@@ -52,8 +53,6 @@ interface SourceLibrary {
   version: string;
   last_updated: string;
 }
-
-const API_BASE = "http://localhost:8000";
 
 const CATEGORY_ICONS: Record<string, string> = {
   government: "🏛️",

@@ -1,6 +1,7 @@
 """
 Competitive Intelligence Platform - FastAPI Backend
 """
+import os
 import sys
 import logging
 from pathlib import Path
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import prompts_router, research_router, reports_router, sources_router, delta_router, schedule_router
+from routers import prompts_router, research_router, reports_router, sources_router, delta_router, schedule_router, ticker_router
 
 app = FastAPI(
     title="Competitive Intelligence API",
@@ -24,13 +25,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS for Next.js frontend
+# Configure CORS - reads from environment variable or defaults to localhost
+# Set CORS_ORIGINS to a comma-separated list of allowed origins for production
+cors_origins_str = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Include routers
@@ -40,6 +45,7 @@ app.include_router(reports_router)
 app.include_router(sources_router)
 app.include_router(delta_router)
 app.include_router(schedule_router)
+app.include_router(ticker_router)
 
 
 @app.get("/")

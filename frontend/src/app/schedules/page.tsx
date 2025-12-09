@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { API_BASE } from "@/lib/api";
 
 interface ScheduleConfig {
   frequency: string;
@@ -62,8 +63,6 @@ interface Prompt {
   name: string;
   category: string;
 }
-
-const API_BASE = "http://localhost:8000";
 
 const FREQUENCY_LABELS: Record<string, string> = {
   daily: "Daily",

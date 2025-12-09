@@ -20,6 +20,7 @@ from services.source_service import (
 )
 from services.delta_service import run_delta_analysis, run_knowledge_base_delta, save_delta_report
 from services.synthesis_service import get_synthesis_service
+from services.presentation_service import get_presentation_service
 from datetime import datetime
 import uuid
 import asyncio
@@ -33,6 +34,27 @@ import io
 import re
 import json
 from pathlib import Path
+
+# Try to import LangGraph orchestrator (optional dependency)
+try:
+    from services.langgraph_research_service import get_langgraph_orchestrator
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    get_langgraph_orchestrator = None
+
+# Try to import Open Deep Research service (for enhanced deep research)
+try:
+    from services.open_deep_research_service import (
+        get_open_deep_research_service,
+        run_open_deep_research,
+        DeepResearchResult,
+    )
+    OPEN_DEEP_RESEARCH_AVAILABLE = True
+except ImportError:
+    OPEN_DEEP_RESEARCH_AVAILABLE = False
+    get_open_deep_research_service = None
+    run_open_deep_research = None
 
 logger = logging.getLogger(__name__)
 
@@ -131,44 +153,288 @@ def _run_research_sync(job_id: str):
         logger.info(f"Starting research for job {job_id}: {job.company} - {job.prompt_id}")
         logger.info(f"Found {len(relevant_sources)} relevant sources for prompt keywords: {prompt_keywords}")
 
-        # Run the research synchronously
-        # Note: source_hints can be appended to the prompt if the engine supports it
-        results = service.engine.run_research(
-            job.company,
-            job.prompt_id,
-            job.mode,
-            job.providers
-        )
+        # Check if using DEEP mode with Open Deep Research (LangChain's multi-agent workflow)
+        if job.mode == "deep" and OPEN_DEEP_RESEARCH_AVAILABLE:
+            logger.info(f"Using Open Deep Research (LangChain) for job {job_id}")
+            job.progress = 15
 
-        logger.info(f"Research completed for job {job_id}, processing results...")
+            # Get the prompt content
+            prompt_content = service.engine.load_prompt(job.prompt_id)
 
-        # Collect all citations for source matching
-        all_citations = []
+            # Map our provider names to Open Deep Research provider names
+            provider_mapping = {
+                "openai": "openai",
+                "anthropic": "anthropic",
+                "google": "google",
+                "xai": "xai",
+                "perplexity": "perplexity",
+            }
 
-        # Update job with results
-        job.results = []
-        for provider, result in results.items():
-            if result.error is None:
-                # Convert citations to the expected format
-                citations = [
-                    {"url": c.get("url", ""), "title": c.get("title", "")}
-                    for c in (result.citations or [])
-                ]
-                all_citations.extend(citations)
+            # Create event loop for async execution
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                # Run deep research for each provider in parallel
+                odr_service = get_open_deep_research_service()
 
-                job.results.append(ProviderResult(
-                    provider=provider,
+                # Check if service is available
+                is_healthy = loop.run_until_complete(odr_service.check_health())
+                if not is_healthy:
+                    logger.warning("Open Deep Research server not available, falling back to basic research")
+                    # Fall through to standard research flow
+                else:
+                    job.progress = 20
+
+                    # Run parallel research with all selected providers
+                    mapped_providers = [
+                        provider_mapping.get(p, "openai")
+                        for p in job.providers
+                    ]
+
+                    research_results = loop.run_until_complete(
+                        odr_service.run_research_parallel(
+                            query=prompt_content,
+                            providers=mapped_providers,
+                            company=job.company,
+                            deep_mode=True,
+                            # Uses DEEP_RESEARCH_TIMEOUT_SECONDS env var (default: 15 min)
+                        )
+                    )
+
+                    job.progress = 80
+                    logger.info(f"Open Deep Research completed for job {job_id}")
+
+                    # Convert results to job format
+                    all_citations = []
+                    job.results = []
+
+                    for orig_provider in job.providers:
+                        mapped_provider = provider_mapping.get(orig_provider, "openai")
+                        result = research_results.get(mapped_provider)
+
+                        if result and result.status == "completed" and result.content:
+                            job.results.append(ProviderResult(
+                                provider=orig_provider,
+                                status=ResearchStatus.COMPLETED,
+                                content=result.content,
+                                citations=result.citations or [],
+                                model=f"open-deep-research:{result.model}",
+                            ))
+                            all_citations.extend(result.citations or [])
+                        elif result and result.error:
+                            job.results.append(ProviderResult(
+                                provider=orig_provider,
+                                status=ResearchStatus.FAILED,
+                                error=result.error,
+                            ))
+                        else:
+                            job.results.append(ProviderResult(
+                                provider=orig_provider,
+                                status=ResearchStatus.FAILED,
+                                error="No result returned from Open Deep Research",
+                            ))
+
+                    # If multiple providers succeeded, synthesize results
+                    successful_results = [r for r in job.results if r.status == ResearchStatus.COMPLETED]
+                    if len(successful_results) >= 2:
+                        job.progress = 85
+                        logger.info(f"Synthesizing {len(successful_results)} Open Deep Research results for job {job_id}")
+                        try:
+                            synthesis_service = get_synthesis_service()
+                            model_outputs = {
+                                r.provider: r.content
+                                for r in successful_results
+                            }
+                            synthesis_result = synthesis_service.synthesize(
+                                company=job.company,
+                                prompt_name=job.prompt_name,
+                                model_outputs=model_outputs,
+                            )
+                            job.synthesized_report = SynthesizedReport(
+                                content=synthesis_result.full_markdown,
+                                models_used=synthesis_result.models_used,
+                                high_confidence_findings=synthesis_result.high_confidence_findings,
+                                areas_of_disagreement=synthesis_result.areas_of_disagreement,
+                                unique_insights=synthesis_result.unique_insights,
+                                generated_at=synthesis_result.generated_at,
+                            )
+                            logger.info(f"Synthesis complete for job {job_id}")
+                        except Exception as synth_err:
+                            logger.error(f"Synthesis failed for job {job_id}: {synth_err}")
+
+                    # Match citations to curated sources and update hit counts
+                    if all_citations:
+                        matched_source_ids = match_citations_to_sources(all_citations)
+                        if matched_source_ids:
+                            job.cited_sources = matched_source_ids
+                            update_source_hit_counts(matched_source_ids)
+                            logger.info(f"Matched {len(matched_source_ids)} curated sources")
+
+                    # Mark job as complete
+                    job.status = ResearchStatus.COMPLETED
+                    job.progress = 100
+                    job.completed_at = datetime.utcnow()
+                    job.updated_at = datetime.utcnow()
+                    _save_job_to_disk(job)
+                    logger.info(f"Open Deep Research job {job_id} completed successfully")
+                    return  # Exit early, we're done
+
+            except Exception as odr_error:
+                logger.error(f"Open Deep Research failed, falling back to standard: {odr_error}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # Fall through to standard research flow
+            finally:
+                loop.close()
+
+        # Check if using orchestrated mode with LangGraph
+        if job.mode == "orchestrated" and LANGGRAPH_AVAILABLE:
+            logger.info(f"Using LangGraph orchestration for job {job_id}")
+            job.progress = 15
+
+            # Get the prompt content
+            prompt_content = service.engine.load_prompt(job.prompt_id)
+
+            # Run orchestrated research (async) in a new event loop
+            orchestrator = get_langgraph_orchestrator()
+
+            # Create event loop for async execution
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                orchestration_result = loop.run_until_complete(
+                    orchestrator.run_deep_research(
+                        company=job.company,
+                        prompt=prompt_content,
+                        prompt_id=job.prompt_id,
+                        providers=job.providers,
+                        mode="deep"  # Use deep research for each sub-topic
+                    )
+                )
+            finally:
+                loop.close()
+
+            job.progress = 70
+            logger.info(f"LangGraph orchestration completed for job {job_id}")
+
+            # Process orchestration result
+            if orchestration_result.get("status") == "completed" or orchestration_result.get("status") == "completed_with_errors":
+                # Create a synthesized report from the orchestration output
+                final_report = orchestration_result.get("final_report", "")
+                citations = orchestration_result.get("citations", [])
+                sub_topics = orchestration_result.get("sub_topics", [])
+
+                # Store as synthesized report
+                job.synthesized_report = SynthesizedReport(
+                    content=final_report,
+                    models_used=job.providers,
+                    high_confidence_findings=[f"Sub-topic: {st.get('topic', 'N/A')}" for st in sub_topics[:5]],
+                    areas_of_disagreement=[],
+                    unique_insights={},
+                    generated_at=datetime.utcnow(),
+                )
+
+                # Create a placeholder provider result for the orchestrated output
+                job.results = [ProviderResult(
+                    provider="orchestrated",
                     status=ResearchStatus.COMPLETED,
-                    content=result.text,
-                    citations=citations,
-                    model=result.model,
-                ))
+                    content=final_report,
+                    citations=[{"url": c.get("url", ""), "title": c.get("title", "")} for c in citations],
+                    model="langgraph-orchestrator",
+                )]
+
+                # Collect all citations for source matching
+                all_citations = [{"url": c.get("url", ""), "title": c.get("title", "")} for c in citations]
+
             else:
-                job.results.append(ProviderResult(
-                    provider=provider,
+                # Orchestration failed
+                error_msg = orchestration_result.get("error", "Unknown orchestration error")
+                job.results = [ProviderResult(
+                    provider="orchestrated",
                     status=ResearchStatus.FAILED,
-                    error=result.error,
-                ))
+                    error=error_msg,
+                )]
+                all_citations = []
+
+            logger.info(f"Orchestrated research completed for job {job_id}")
+
+        else:
+            # Standard research flow
+            # Run the research synchronously
+            # Note: source_hints can be appended to the prompt if the engine supports it
+            results = service.engine.run_research(
+                job.company,
+                job.prompt_id,
+                job.mode if job.mode != "orchestrated" else "deep",  # Fallback to deep if LangGraph unavailable
+                job.providers
+            )
+
+            logger.info(f"Research completed for job {job_id}, processing results...")
+
+            # Collect all citations for source matching
+            all_citations = []
+
+            # Update job with results
+            job.results = []
+            for provider, result in results.items():
+                if result.error is None:
+                    # Convert citations to the expected format
+                    citations = [
+                        {"url": c.get("url", ""), "title": c.get("title", "")}
+                        for c in (result.citations or [])
+                    ]
+                    all_citations.extend(citations)
+
+                    job.results.append(ProviderResult(
+                        provider=provider,
+                        status=ResearchStatus.COMPLETED,
+                        content=result.text,
+                        citations=citations,
+                        model=result.model,
+                    ))
+                else:
+                    job.results.append(ProviderResult(
+                        provider=provider,
+                        status=ResearchStatus.FAILED,
+                        error=result.error,
+                    ))
+
+            # If mode is "combined", synthesize the results into a unified report
+            if job.mode == "combined" and len(job.results) >= 2:
+                job.progress = 80
+                logger.info(f"Synthesizing {len(job.results)} model outputs for job {job_id}")
+                try:
+                    synthesis_service = get_synthesis_service()
+
+                    # Collect successful model outputs
+                    model_outputs = {}
+                    for pr in job.results:
+                        if pr.status == ResearchStatus.COMPLETED and pr.content:
+                            model_outputs[pr.provider] = pr.content
+
+                    if len(model_outputs) >= 2:
+                        # Run synthesis
+                        synthesis_result = synthesis_service.synthesize(
+                            company=job.company,
+                            prompt_name=job.prompt_name,
+                            model_outputs=model_outputs,
+                        )
+
+                        # Store the synthesized report
+                        job.synthesized_report = SynthesizedReport(
+                            content=synthesis_result.full_markdown,
+                            models_used=synthesis_result.models_used,
+                            high_confidence_findings=synthesis_result.high_confidence_findings,
+                            areas_of_disagreement=synthesis_result.areas_of_disagreement,
+                            unique_insights=synthesis_result.unique_insights,
+                            generated_at=synthesis_result.generated_at,
+                        )
+                        logger.info(f"Synthesis complete for job {job_id}")
+                    else:
+                        logger.warning(f"Not enough successful model outputs for synthesis in job {job_id}")
+                except Exception as synth_err:
+                    logger.error(f"Synthesis failed for job {job_id}: {synth_err}\n{traceback.format_exc()}")
+                    # Don't fail the job, just skip synthesis
 
         # Match citations to curated sources and update hit counts
         if all_citations:
@@ -178,46 +444,10 @@ def _run_research_sync(job_id: str):
                 update_source_hit_counts(matched_source_ids)
                 logger.info(f"Matched {len(matched_source_ids)} curated sources: {matched_source_ids}")
 
-        # If mode is "combined", synthesize the results into a unified report
-        if job.mode == "combined" and len(job.results) >= 2:
-            job.progress = 80
-            logger.info(f"Synthesizing {len(job.results)} model outputs for job {job_id}")
-            try:
-                synthesis_service = get_synthesis_service()
-
-                # Collect successful model outputs
-                model_outputs = {}
-                for pr in job.results:
-                    if pr.status == ResearchStatus.COMPLETED and pr.content:
-                        model_outputs[pr.provider] = pr.content
-
-                if len(model_outputs) >= 2:
-                    # Run synthesis
-                    synthesis_result = synthesis_service.synthesize(
-                        company=job.company,
-                        prompt_name=job.prompt_name,
-                        model_outputs=model_outputs,
-                    )
-
-                    # Store the synthesized report
-                    job.synthesized_report = SynthesizedReport(
-                        content=synthesis_result.full_markdown,
-                        models_used=synthesis_result.models_used,
-                        high_confidence_findings=synthesis_result.high_confidence_findings,
-                        areas_of_disagreement=synthesis_result.areas_of_disagreement,
-                        unique_insights=synthesis_result.unique_insights,
-                        generated_at=synthesis_result.generated_at,
-                    )
-                    logger.info(f"Synthesis complete for job {job_id}")
-                else:
-                    logger.warning(f"Not enough successful model outputs for synthesis in job {job_id}")
-            except Exception as synth_err:
-                logger.error(f"Synthesis failed for job {job_id}: {synth_err}\n{traceback.format_exc()}")
-                # Don't fail the job, just skip synthesis
-
-        # Save results to disk
-        save_info = service.save_results(results, job.company, job.prompt_name)
-        job.result_file = save_info.get("output_dir")
+        # Save results to disk (only for non-orchestrated modes)
+        if job.mode != "orchestrated" or not LANGGRAPH_AVAILABLE:
+            save_info = service.save_results(results, job.company, job.prompt_name)
+            job.result_file = save_info.get("output_dir")
 
         # Mark job as complete
         job.status = ResearchStatus.COMPLETED
@@ -663,6 +893,10 @@ async def export_result(
     format: Literal["md", "html", "txt", "pdf", "docx"] = "md"
 ):
     """Export a specific provider's result in various formats"""
+    # Handle "combined" separately - redirect to the combined export endpoint
+    if provider == "combined":
+        return await export_combined_result(job_id, format)
+
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
 
@@ -961,3 +1195,72 @@ async def export_combined_result(
             media_type="text/plain",
             headers={"Content-Disposition": f'attachment; filename="{filename}.txt"'}
         )
+
+
+@router.post("/{job_id}/presentation")
+async def generate_presentation(
+    job_id: str,
+    provider: str = "combined",
+    llm_provider: str = "google"
+):
+    """Generate slide content as text that can be copied into a branded slide deck."""
+    from services.presentation_service import get_presentation_service
+    from models.research import ResearchStatus
+
+    job = await get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status != ResearchStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Job is not completed")
+
+    company = job.company or "Company"
+    prompt_name = job.prompt_name or "Research"
+    content = None
+    citations = []
+
+    if provider == "combined":
+        # Use combined/synthesized content
+        if not job.synthesized_report:
+            raise HTTPException(status_code=400, detail="No combined result available")
+        content = job.synthesized_report.content
+        # SynthesizedReport doesn't have citations, collect from all providers
+        for result in job.results:
+            if result.citations:
+                citations.extend(result.citations)
+    else:
+        # Use specific provider result - find in results list
+        provider_result = None
+        for result in job.results:
+            if result.provider == provider:
+                provider_result = result
+                break
+        if not provider_result:
+            raise HTTPException(status_code=400, detail=f"No result found for provider: {provider}")
+        content = provider_result.content or ""
+        citations = provider_result.citations or []
+
+    if not content:
+        raise HTTPException(status_code=400, detail="No content available for presentation generation")
+
+    try:
+        presentation_service = get_presentation_service()
+        # Convert Citation objects to dicts for the service
+        citations_dicts = [{"url": c.url, "title": c.title} for c in citations] if citations else []
+        slide_text = presentation_service.generate_slide_text(
+            content=content,
+            company=company,
+            prompt_name=prompt_name,
+            citations=citations_dicts
+        )
+
+        filename = f"{company}_{prompt_name}_slides".replace(" ", "_")
+
+        return Response(
+            content=slide_text,
+            media_type="text/plain; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.txt"'}
+        )
+    except Exception as e:
+        logger.error(f"Slide content generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Slide content generation failed: {str(e)}")

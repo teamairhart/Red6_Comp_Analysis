@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
 
 interface Report {
   id: string;
@@ -21,8 +22,6 @@ interface Report {
   filename: string;
   content: string;
 }
-
-const API_BASE = "http://localhost:8000";
 
 export default function ReportDetailPage() {
   const params = useParams();

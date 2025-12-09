@@ -132,7 +132,7 @@ def get_anthropic_client() -> Optional[anthropic.Anthropic]:
     return anthropic.Anthropic(api_key=api_key)
 
 
-DELTA_ANALYSIS_PROMPT = """You are an intelligence analyst comparing a NEW research report against HISTORICAL reports for the same company. Your task is to identify what is genuinely NEW, UPDATED, or CONTRADICTED.
+DELTA_ANALYSIS_PROMPT = """You are an intelligence analyst comparing a NEW research report against HISTORICAL reports for the same company. Your task is to identify what is genuinely NEW, UPDATED, or CONTRADICTED - and explain WHY each finding matters.
 
 ## HISTORICAL CONTEXT
 The following are previous reports on {company}:
@@ -148,14 +148,19 @@ Analyze the NEW REPORT and identify significant findings that represent:
 2. **UPDATED** - Information that updates/changes something from historical reports
 3. **CONTRADICTED** - Information that contradicts something stated in historical reports
 
-For each finding, provide:
-- The finding text (concise summary)
-- Type: NEW, UPDATED, or CONTRADICTED
-- Confidence: HIGH, MEDIUM, or LOW (how certain you are this is accurate)
-- Importance: CRITICAL (immediate action needed), NOTABLE (significant), or MINOR (good to know)
-- Category: Executive, Contract, Technology, Partnership, Financial, Strategy, or Other
-- Previous text (for UPDATED/CONTRADICTED only - what it updates/contradicts)
-- Source URL if mentioned in the report
+For each finding, provide DETAILED CONTEXT including:
+- **finding_text**: Concise summary of the finding
+- **finding_type**: NEW, UPDATED, or CONTRADICTED
+- **confidence**: HIGH, MEDIUM, or LOW
+- **confidence_reasoning**: WHY you assigned this confidence level (what evidence supports it?)
+- **importance**: CRITICAL (immediate action needed), NOTABLE (significant), or MINOR (good to know)
+- **importance_reasoning**: WHY this is CRITICAL/NOTABLE/MINOR - what makes this newsworthy or actionable?
+- **competitive_impact**: How does this affect competitive dynamics? What strategic implications does this have?
+- **category**: Executive, Contract, Technology, Partnership, Financial, Strategy, or Other
+- **previous_text**: For UPDATED/CONTRADICTED only - what it updates/contradicts
+- **supporting_evidence**: Array of 1-3 key quotes or facts from the report that back up this finding
+- **source_urls**: Array of ALL relevant URLs mentioned in relation to this finding
+- **action_items**: Array of 1-3 suggested follow-up actions for analysts
 
 ## OUTPUT FORMAT
 Return a JSON array of findings. Example:
@@ -165,19 +170,42 @@ Return a JSON array of findings. Example:
     "finding_text": "John Smith appointed as new CEO effective January 2025",
     "finding_type": "NEW",
     "confidence": "HIGH",
+    "confidence_reasoning": "Multiple credible sources confirm the appointment including official company press release",
     "importance": "CRITICAL",
+    "importance_reasoning": "CEO changes fundamentally reshape company strategy and priorities. Smith's background in M&A suggests potential acquisition activity.",
+    "competitive_impact": "Smith previously led competitor acquisitions at Acme Corp. This signals potential market consolidation moves that could threaten our position.",
     "category": "Executive",
     "previous_text": null,
-    "source_url": "https://example.com/article"
+    "supporting_evidence": [
+      "Company press release dated Jan 5, 2025 announced Smith's appointment",
+      "Smith served as M&A Director at Acme Corp from 2019-2024"
+    ],
+    "source_urls": ["https://company.com/press/ceo-announcement", "https://reuters.com/article/smith-ceo"],
+    "action_items": [
+      "Review Smith's M&A history for acquisition pattern analysis",
+      "Monitor for strategic pivot announcements in next 90 days",
+      "Brief leadership on potential market impact"
+    ]
   }},
   {{
     "finding_text": "Contract value increased from $50M to $75M",
     "finding_type": "UPDATED",
     "confidence": "MEDIUM",
+    "confidence_reasoning": "Figure cited in trade publication but not yet confirmed by official sources",
     "importance": "NOTABLE",
+    "importance_reasoning": "50% contract expansion indicates strong customer satisfaction and growing revenue pipeline",
+    "competitive_impact": "Increased contract demonstrates competitive win against alternative vendors. May signal shifting customer preferences.",
     "category": "Contract",
-    "previous_text": "Initial contract award was $50M",
-    "source_url": null
+    "previous_text": "Initial contract award was $50M (reported March 2024)",
+    "supporting_evidence": [
+      "Defense News reported contract modification valued at $25M",
+      "Original $50M award announced in March 2024"
+    ],
+    "source_urls": ["https://defensenews.com/contract-update"],
+    "action_items": [
+      "Verify contract details through official procurement records",
+      "Analyze what drove the contract expansion"
+    ]
   }}
 ]
 ```
@@ -186,6 +214,8 @@ IMPORTANT:
 - Only include genuinely significant findings, not minor rewording
 - Be conservative - if unsure whether something is new, mark it as LOW confidence
 - Focus on actionable intelligence relevant to competitive analysis
+- ALWAYS explain WHY findings matter - this is critical for analyst briefings
+- Include ALL relevant URLs you can find in the report
 - Return ONLY the JSON array, no other text
 - If there are no significant findings, return an empty array: []
 """
@@ -334,6 +364,18 @@ def _parse_findings_response(response_text: str, job_id: str, company: str) -> L
         raw_findings = json.loads(json_text)
 
         for raw in raw_findings:
+            # Handle source_urls - use list if provided, else fall back to single source_url
+            source_urls = raw.get("source_urls")
+            source_url = raw.get("source_url")
+
+            # If source_urls is provided as a list, use first as primary source_url
+            if source_urls and isinstance(source_urls, list) and len(source_urls) > 0:
+                if not source_url:
+                    source_url = source_urls[0]
+            # If only source_url provided, convert to list
+            elif source_url and not source_urls:
+                source_urls = [source_url]
+
             finding = DeltaFinding(
                 id=str(uuid.uuid4()),
                 report_id=job_id,
@@ -344,8 +386,15 @@ def _parse_findings_response(response_text: str, job_id: str, company: str) -> L
                 importance=Importance(raw.get("importance", "NOTABLE")),
                 category=raw.get("category"),
                 previous_text=raw.get("previous_text"),
-                source_url=raw.get("source_url"),
+                source_url=source_url,
                 created_at=datetime.utcnow(),
+                # Enhanced context fields
+                importance_reasoning=raw.get("importance_reasoning"),
+                competitive_impact=raw.get("competitive_impact"),
+                supporting_evidence=raw.get("supporting_evidence"),
+                source_urls=source_urls,
+                confidence_reasoning=raw.get("confidence_reasoning"),
+                action_items=raw.get("action_items"),
             )
             findings.append(finding)
 

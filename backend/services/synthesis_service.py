@@ -9,13 +9,20 @@ them into a single comprehensive report with:
 - Unique insights from each model
 - Confidence scores based on consensus
 - Model attribution throughout
+
+(Using Gemini during development to utilize trial credits - switch back to Claude for production)
 """
 
 import os
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
-import anthropic
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from project root
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path)
 
 
 @dataclass
@@ -114,16 +121,17 @@ Begin your synthesized intelligence report now:"""
 class SynthesisService:
     """
     Service for synthesizing multiple AI model outputs into unified reports.
-    Uses Claude (Anthropic) as the synthesis model due to its strong
-    analytical and writing capabilities.
+    Uses Gemini as the synthesis model during development (to use trial credits).
+    Switch back to Claude for production deployment.
     """
 
     def __init__(self):
-        self.api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY not found in environment")
-        self.client = anthropic.Anthropic(api_key=self.api_key)
-        self.model = "claude-sonnet-4-20250514"  # Fast, capable model for synthesis
+            raise ValueError("GEMINI_API_KEY not found in environment")
+        from google import genai
+        self.client = genai.Client(api_key=self.api_key)
+        self.model = "gemini-2.0-flash"  # Fast, capable model for synthesis
 
     def synthesize(
         self,
@@ -169,19 +177,13 @@ class SynthesisService:
             num_models=len(model_outputs),
         )
 
-        # Call Claude to synthesize
-        response = self.client.messages.create(
+        # Call Gemini to synthesize
+        response = self.client.models.generate_content(
             model=self.model,
-            max_tokens=8192,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+            contents=prompt,
         )
 
-        synthesized_content = response.content[0].text
+        synthesized_content = response.text
 
         # Parse out the sections (basic parsing)
         high_confidence = self._extract_section(

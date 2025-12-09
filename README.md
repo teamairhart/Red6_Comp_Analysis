@@ -84,27 +84,65 @@ pip install -r requirements.txt
 
 ### 2. Configure API Keys
 
-Create a `.env` file in the **project root** directory:
+Copy the example environment files and fill in your values:
 
+```bash
+# Backend configuration
+cp backend/.env.example backend/.env
+
+# Frontend configuration (optional - defaults to localhost)
+cp frontend/.env.example frontend/.env.local
+```
+
+**Backend `.env` file:**
 ```env
+# Core LLM Providers
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=your-gemini-key
 XAI_API_KEY=xai-...
 PERPLEXITY_API_KEY=pplx-...
+
+# Required for Deep Research Mode (Web Search)
+TAVILY_API_KEY=tvly-...  # Get from https://tavily.com
+
+# Optional: Configure CORS origins (comma-separated for multiple)
+CORS_ORIGINS=http://localhost:3000
+
+# Optional: Configure Deep Research timeout (default: 300 = 5 minutes)
+DEEP_RESEARCH_TIMEOUT_SECONDS=300
+
+# LangGraph server URL for deep research
+LANGGRAPH_URL=http://localhost:2024
 ```
 
-> Note: At minimum, you need `ANTHROPIC_API_KEY` for entity extraction and at least one other provider key for research.
+**Frontend `.env.local` file (optional):**
+```env
+# Backend API URL (defaults to http://localhost:8000)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-### 3. Start Backend
+> Note: At minimum, you need `ANTHROPIC_API_KEY` for entity extraction, at least one other provider key for research, and `TAVILY_API_KEY` for Deep Research mode.
+
+### 3. Start Open Deep Research Server (for Deep Research mode)
 
 ```bash
-cd backend
-source venv/bin/activate
+cd ../open_deep_research
+source .venv/bin/activate
+uvx --from "langgraph-cli[inmem]" --with-editable . --python 3.11 langgraph dev --allow-blocking
+```
+
+This starts the LangGraph server on port 2024. Leave this running in a separate terminal.
+
+### 4. Start Backend
+
+```bash
+cd competitive_analysis_research/backend
+source ../venv/bin/activate
 uvicorn main:app --reload --port 8000
 ```
 
-### 4. Frontend Setup
+### 5. Frontend Setup
 
 ```bash
 cd frontend
@@ -112,11 +150,12 @@ npm install
 npm run dev
 ```
 
-### 5. Access the Application
+### 6. Access the Application
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
+- **Open Deep Research Studio**: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024 (optional, for debugging deep research)
 
 ---
 
@@ -148,6 +187,7 @@ competitive_analysis_research/
 │   │   └── schedule.py             # Scheduled research endpoints
 │   ├── services/                   # Business logic
 │   │   ├── research_service.py     # Research orchestration
+│   │   ├── open_deep_research_service.py # LangChain Open Deep Research client (NEW!)
 │   │   ├── synthesis_service.py    # Multi-model report synthesis
 │   │   ├── knowledge_base_service.py # Entity extraction & change detection
 │   │   ├── delta_service.py        # Delta analysis service
@@ -165,7 +205,9 @@ competitive_analysis_research/
 │   │   ├── briefing/               # Intelligence Briefing
 │   │   ├── prompts/                # Prompt library
 │   │   └── research/[jobId]/       # Research progress & results
-│   └── src/components/             # React components
+│   ├── src/components/             # React components
+│   └── src/lib/
+│       └── api.ts                  # Shared API configuration & helpers
 │
 ├── prompts/                        # Research prompt templates (.md files)
 ├── reports/                        # Generated research reports
@@ -185,13 +227,13 @@ competitive_analysis_research/
 
 Run competitive intelligence queries across 5 AI providers simultaneously:
 
-| Provider   | Model            | Web Search      | Best For                    |
-|------------|------------------|-----------------|------------------------------|
-| OpenAI     | GPT-4            | Responses API   | General analysis             |
-| Anthropic  | Claude Sonnet    | MCP Tool        | Detailed, nuanced analysis   |
-| Google     | Gemini           | Grounding       | Fast, current information    |
-| xAI        | Grok             | Built-in        | Real-time data + X/Twitter   |
-| Perplexity | Sonar Pro        | Native          | Best citations & current news|
+| Provider   | Model                    | Web Search      | Best For                    |
+|------------|--------------------------|-----------------|------------------------------|
+| OpenAI     | GPT-4.1                  | Responses API   | General analysis             |
+| Anthropic  | Claude Sonnet 4          | MCP Tool        | Detailed, nuanced analysis   |
+| Google     | Gemini 3 Pro Preview     | Grounding       | Advanced reasoning + 1M context |
+| xAI        | Grok                     | Built-in        | Real-time data + X/Twitter   |
+| Perplexity | Sonar Pro                | Native          | Best citations & current news|
 
 ### 2. Combined Report Synthesis
 
@@ -208,11 +250,75 @@ When multiple models are selected with "Generate Combined Report" enabled:
 
 ### 3. Research Modes
 
-| Mode     | Speed     | Depth          | Use Case                    |
-|----------|-----------|----------------|-----------------------------|
-| Basic    | ~30-60s   | Quick scan     | Initial reconnaissance      |
-| Deep     | ~2-5 min  | Comprehensive  | Detailed competitive intel  |
-| Combined | ~3-6 min  | Multi-model    | Highest confidence results  |
+| Mode     | Speed     | Depth          | Use Case                    | Technology                      |
+|----------|-----------|----------------|-----------------------------|---------------------------------|
+| Basic    | ~30-60s   | Quick scan     | Initial reconnaissance      | Direct API calls to LLMs        |
+| Deep     | ~3-10 min | Comprehensive  | Detailed competitive intel  | **LangChain Open Deep Research**|
+| Combined | ~5-12 min | Multi-model    | Highest confidence results  | Deep + synthesis                |
+
+### 4. Enhanced Deep Research (NEW!)
+
+When **Deep Research** mode is selected, the platform now leverages **LangChain's Open Deep Research** framework - the same multi-agent architecture used by ChatGPT Deep Research, Claude Deep Research, and Gemini Research:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DEEP RESEARCH ARCHITECTURE                               │
+│                    (Powered by LangChain Open Deep Research)                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+User Query                         Open Deep Research Server (Port 2024)
+    │                                         │
+    ▼                                         │
+┌───────────────┐                             │
+│ 1. CLARIFY    │◄────────────────────────────┤
+│ Scope & Intent│                             │
+└───────┬───────┘                             │
+        │                                     │
+        ▼                                     │
+┌───────────────┐                             │
+│ 2. RESEARCH   │  Multi-Agent System         │
+│ BRIEF         │  ┌────────────────────────┐ │
+└───────┬───────┘  │  Supervisor Agent      │ │
+        │          │  Delegates to:         │ │
+        ▼          │   ├─ Researcher 1      │ │
+┌───────────────┐  │   ├─ Researcher 2      │ │
+│ 3. PARALLEL   │◄─┤   └─ Researcher N      │ │
+│ RESEARCH      │  │                        │ │
+│               │  │  Each researcher:      │ │
+│ • Web search  │  │   - Web search (Tavily)│ │
+│ • Read sources│  │   - Read & extract     │ │
+│ • Iterate     │  │   - Iterate & refine   │ │
+└───────┬───────┘  └────────────────────────┘ │
+        │                                     │
+        ▼                                     │
+┌───────────────┐                             │
+│ 4. COMPRESS   │  Compress findings from     │
+│               │  each researcher            │
+└───────┬───────┘                             │
+        │                                     │
+        ▼                                     │
+┌───────────────┐                             │
+│ 5. SYNTHESIZE │  Generate comprehensive    │
+│ FINAL REPORT  │  final report              │
+└───────────────┘                             │
+```
+
+**Key Benefits:**
+- **Web Search Integration**: Tavily API provides real-time web search during research
+- **Multi-Agent Architecture**: Supervisor delegates to multiple researcher agents working in parallel
+- **Iterative Refinement**: Each agent searches, reads, and refines findings multiple times
+- **Compression Pipeline**: Findings are compressed to fit context windows while preserving key insights
+- **Model Flexibility**: Run Deep Research with any provider (OpenAI, Anthropic, Google, etc.)
+
+**Model Mapping for Deep Research:**
+
+| Provider   | Research Model           | Best For                          |
+|------------|--------------------------|-----------------------------------|
+| OpenAI     | GPT-4.1                  | Strong general-purpose research   |
+| Anthropic  | Claude Sonnet 4          | Detailed, nuanced analysis        |
+| Google     | Gemini 3 Pro Preview     | Advanced reasoning + 1M context   |
+| xAI        | GPT-4.1 (fallback)       | Research with GPT backbone        |
+| Perplexity | GPT-4.1 (fallback)       | Research with GPT backbone        |
 
 ---
 
@@ -515,6 +621,23 @@ Provide specific names, dates, and values where available.
 - Use Basic mode for initial research
 - Select fewer providers
 - Combined mode uses additional API calls for synthesis
+
+### Deep Research mode not working
+- Ensure the Open Deep Research server is running on port 2024:
+  ```bash
+  cd open_deep_research
+  source .venv/bin/activate
+  uvx --from "langgraph-cli[inmem]" --with-editable . --python 3.11 langgraph dev --allow-blocking
+  ```
+- Verify TAVILY_API_KEY is set in the `.env` file (required for web search)
+- Check health: `curl http://127.0.0.1:2024/ok` should return `{"ok":true}`
+- Deep Research takes 3-15 minutes per provider (uses web search + multi-agent workflow)
+- If research times out, the server will still complete - check the job results later
+- Increase timeout by setting `DEEP_RESEARCH_TIMEOUT_SECONDS=1200` in `.env` for 20 minutes
+
+### Open Deep Research server shows authentication errors
+- Ensure `open_deep_research/src/security/auth.py` allows local development without Supabase
+- The auth file should return `{"identity": "local-dev-user"}` when Supabase is not configured
 
 ---
 

@@ -38,8 +38,16 @@ class DeltaFinding(BaseModel):
     category: Optional[str] = None  # e.g., "Executive", "Contract", "Technology"
     event_date: Optional[date] = None  # When the event occurred (if known)
     previous_text: Optional[str] = None  # For updates/contradictions
-    source_url: Optional[str] = None  # Citation URL if available
+    source_url: Optional[str] = None  # Primary citation URL if available
     created_at: datetime
+
+    # Enhanced context fields for better briefing utility
+    importance_reasoning: Optional[str] = None  # Why is this CRITICAL/NOTABLE/MINOR?
+    competitive_impact: Optional[str] = None  # How does this affect competitive dynamics?
+    supporting_evidence: Optional[list[str]] = None  # Key quotes/facts backing the finding
+    source_urls: Optional[list[str]] = None  # Multiple citation URLs for deeper research
+    confidence_reasoning: Optional[str] = None  # Why is confidence HIGH/MEDIUM/LOW?
+    action_items: Optional[list[str]] = None  # Suggested follow-up actions
 
 
 class DeltaReport(BaseModel):

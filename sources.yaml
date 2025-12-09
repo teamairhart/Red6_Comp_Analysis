@@ -70,7 +70,7 @@ categories:
     - pentagon
     reliability: high
     update_frequency: daily
-    hit_count: 0
+    hit_count: 1
   - id: breaking_defense
     name: Breaking Defense
     url: https://breakingdefense.com
@@ -82,7 +82,7 @@ categories:
     - military
     reliability: high
     update_frequency: daily
-    hit_count: 0
+    hit_count: 2
   - id: janes
     name: Janes
     url: https://www.janes.com
@@ -148,7 +148,7 @@ categories:
     - markets
     reliability: high
     update_frequency: real-time
-    hit_count: 0
+    hit_count: 1
   - id: wsj
     name: Wall Street Journal
     url: https://www.wsj.com

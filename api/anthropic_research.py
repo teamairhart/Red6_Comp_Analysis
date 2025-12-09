@@ -78,16 +78,22 @@ Provide well-structured analysis with sources cited."""
 
     def deep_research(self, prompt: str, company: str, max_searches: int = 20) -> ResearchResult:
         """
-        Run Claude Deep Research with extensive web searching.
+        Run Claude Deep Research using multi-phase agentic approach.
 
-        This implements a comprehensive research approach:
-        1. Uses high search allowance (20 searches)
-        2. Enhanced prompting to encourage thorough research
-        3. Explicit instructions for verification and cross-referencing
-        4. Uses streaming to handle long-running operations
+        This mirrors the Research mode in Claude.ai which can research for up to 45 minutes.
+        We implement a two-phase approach:
+        - Phase 1: Initial discovery and broad research (15 searches)
+        - Phase 2: Verification, deep dive, and synthesis (15 searches)
 
-        Claude's web search tool handles the agentic loop internally,
-        deciding when and what to search based on the query.
+        Total: 30 web searches across two research phases for comprehensive coverage.
+        """
+        # Use multi-phase research for true deep research capability
+        return self.multi_phase_research(prompt, company)
+
+    def _single_phase_deep_research(self, prompt: str, company: str, max_searches: int = 20) -> ResearchResult:
+        """
+        Alternative: Single-phase deep research with high search count.
+        Faster but less thorough than multi-phase approach.
         """
         try:
             # Enhanced system prompt for deep research

@@ -196,6 +196,27 @@ class ResearchEngine:
         # Load prompt
         prompt_content = self.load_prompt(prompt_name)
 
+        return self.run_research_with_prompt(company, prompt_content, mode, providers)
+
+    def run_research_with_prompt(
+        self,
+        company: str,
+        prompt_content: str,
+        mode: str = "basic",
+        providers: List[str] = None
+    ) -> Dict[str, ResearchResult]:
+        """
+        Run research with direct prompt content across all (or specified) providers in parallel.
+
+        Args:
+            company: Company name to research
+            prompt_content: The actual prompt text to use
+            mode: "basic" or "deep"
+            providers: List of providers to use (default: all available)
+
+        Returns:
+            Dict mapping provider name to ResearchResult
+        """
         # Determine which providers to use
         if providers is None:
             providers = list(self.researchers.keys())

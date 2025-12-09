@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FindingDetailModal } from "@/components/finding-detail-modal";
+import { API_BASE } from "@/lib/api";
 
 interface DeltaFinding {
   id: string;
@@ -30,6 +32,13 @@ interface DeltaFinding {
   previous_text?: string;
   source_url?: string;
   created_at: string;
+  // Enhanced context fields
+  importance_reasoning?: string;
+  competitive_impact?: string;
+  supporting_evidence?: string[];
+  source_urls?: string[];
+  confidence_reasoning?: string;
+  action_items?: string[];
 }
 
 interface DeltaSummary {
@@ -49,8 +58,6 @@ interface BriefingData {
   findings_by_company: Record<string, DeltaFinding[]>;
   recent_reports: any[];
 }
-
-const API_BASE = "http://localhost:8000";
 
 const IMPORTANCE_STYLES = {
   CRITICAL: "bg-red-100 text-red-800 border-red-200",
@@ -75,6 +82,13 @@ export default function BriefingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [periodDays, setPeriodDays] = useState("7");
+  const [selectedFinding, setSelectedFinding] = useState<DeltaFinding | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleFindingClick = (finding: DeltaFinding) => {
+    setSelectedFinding(finding);
+    setModalOpen(true);
+  };
 
   useEffect(() => {
     fetchBriefing(parseInt(periodDays));
@@ -209,7 +223,8 @@ export default function BriefingPage() {
               {briefing.critical_findings.map((finding) => (
                 <div
                   key={finding.id}
-                  className="p-4 bg-white rounded-lg border border-red-200"
+                  onClick={() => handleFindingClick(finding)}
+                  className="p-4 bg-white rounded-lg border border-red-200 cursor-pointer hover:shadow-md hover:border-red-300 transition-all"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -226,7 +241,23 @@ export default function BriefingPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm">{finding.finding_text}</p>
+                      <p className="text-sm font-medium">{finding.finding_text}</p>
+
+                      {/* Why it matters - shown inline for critical findings */}
+                      {finding.importance_reasoning && (
+                        <div className="mt-2 p-2 bg-red-50 rounded border-l-2 border-red-400">
+                          <p className="text-xs font-semibold text-red-700 uppercase tracking-wider mb-1">Why This Matters</p>
+                          <p className="text-sm text-red-900">{finding.importance_reasoning}</p>
+                        </div>
+                      )}
+
+                      {/* Competitive impact preview */}
+                      {finding.competitive_impact && (
+                        <p className="text-xs text-gray-600 mt-2 line-clamp-2">
+                          <span className="font-semibold">Impact:</span> {finding.competitive_impact}
+                        </p>
+                      )}
+
                       {finding.previous_text && (
                         <p className="text-xs text-muted-foreground mt-2 italic">
                           Previously: {finding.previous_text}
@@ -237,16 +268,29 @@ export default function BriefingPage() {
                       {new Date(finding.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                  {finding.source_url && (
-                    <a
-                      href={finding.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline mt-2 inline-block"
-                    >
-                      View source
-                    </a>
-                  )}
+
+                  {/* Source links and action items count */}
+                  <div className="flex items-center gap-3 mt-3 pt-2 border-t border-red-100">
+                    {(finding.source_urls?.length || finding.source_url) && (
+                      <span className="text-xs text-blue-600 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                        {finding.source_urls?.length || 1} source{(finding.source_urls?.length || 1) > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {finding.action_items && finding.action_items.length > 0 && (
+                      <span className="text-xs text-amber-600 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 11l3 3L22 4" />
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                        </svg>
+                        {finding.action_items.length} action item{finding.action_items.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400 ml-auto">Click for details</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -291,7 +335,8 @@ export default function BriefingPage() {
                     {companyFindings.slice(0, 5).map((finding) => (
                       <div
                         key={finding.id}
-                        className={`p-3 rounded-lg border ${IMPORTANCE_STYLES[finding.importance]}`}
+                        onClick={() => handleFindingClick(finding as DeltaFinding)}
+                        className={`p-3 rounded-lg border cursor-pointer hover:shadow-md transition-all ${IMPORTANCE_STYLES[finding.importance]}`}
                       >
                         <div className="flex items-start gap-2">
                           <span
@@ -341,6 +386,13 @@ export default function BriefingPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Finding Detail Modal */}
+      <FindingDetailModal
+        finding={selectedFinding}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </div>
   );
 }

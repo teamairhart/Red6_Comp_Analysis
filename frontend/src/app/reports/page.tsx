@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { API_BASE } from "@/lib/api";
 
 interface ProviderResult {
   provider: string;
@@ -34,8 +35,6 @@ interface ResearchJob {
   created_at: string;
   completed_at?: string;
 }
-
-const API_BASE = "http://localhost:8000";
 
 const PROVIDER_NAMES: Record<string, string> = {
   xai: "xAI (Grok)",

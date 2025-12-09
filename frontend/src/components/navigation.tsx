@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: "dashboard" },
@@ -13,8 +14,6 @@ const navItems = [
   { href: "/briefing", label: "Briefing", icon: "briefing" },
   { href: "/prompts", label: "Prompts", icon: "prompts" },
 ];
-
-const API_BASE = "http://localhost:8000";
 
 interface Notification {
   id: string;

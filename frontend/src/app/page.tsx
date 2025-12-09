@@ -22,8 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 // All companies - primaries first
 const COMPANIES = [
@@ -104,6 +103,7 @@ export default function Dashboard() {
   const [customCompany, setCustomCompany] = useState<string>("");
   const [selectedPrompt, setSelectedPrompt] = useState<string>("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>(["google"]);
+  const [researchDepth, setResearchDepth] = useState<"basic" | "deep">("basic");
   const [combineResults, setCombineResults] = useState(false);
 
   // Data state
@@ -187,11 +187,24 @@ export default function Dashboard() {
     );
   }
 
+  // Get selected prompt details to check requires_company
+  const selectedPromptDetails = categories
+    .flatMap(c => c.prompts)
+    .find(p => p.id === selectedPrompt);
+
+  // Check if company is required for the selected prompt
+  const requiresCompany = selectedPromptDetails?.requires_company !== false;
+
   async function startResearch() {
     const company = selectedCompany === "__custom__" ? customCompany : selectedCompany;
 
-    if (!company || !selectedPrompt || selectedProviders.length === 0) {
-      setError("Please select a company, prompt, and at least one model");
+    // Only require company if the prompt needs it
+    if (requiresCompany && !company) {
+      setError("Please select a company for this research type");
+      return;
+    }
+    if (!selectedPrompt || selectedProviders.length === 0) {
+      setError("Please select a prompt and at least one model");
       return;
     }
 
@@ -206,7 +219,7 @@ export default function Dashboard() {
           company,
           prompt_id: selectedPrompt,
           providers: selectedProviders,
-          mode: combineResults ? "combined" : "basic",
+          mode: combineResults ? "combined" : researchDepth,
         }),
       });
 
@@ -219,10 +232,6 @@ export default function Dashboard() {
       setLoading(false);
     }
   }
-
-  const selectedPromptDetails = categories
-    .flatMap(c => c.prompts)
-    .find(p => p.id === selectedPrompt);
 
   // Flatten all sources for the list
   const allSources = sourceCategories.flatMap(cat =>
@@ -356,63 +365,77 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
-                {/* Company Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="company" className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                    Target Company
-                  </Label>
-                  <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                    <SelectTrigger id="company" className="w-full h-11 text-base">
-                      <SelectValue placeholder="Select a company to research..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel className="text-red-600 dark:text-red-500 font-bold text-sm py-2 px-2 bg-red-50 dark:bg-red-950/50 -mx-1 mb-1 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-red-500" />
-                          PRIMARY COMPETITORS
-                        </SelectLabel>
-                        {COMPANIES.filter(c => c.primary).map(company => (
-                          <SelectItem key={company.name} value={company.name} className="py-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-neutral-900 dark:text-white">{company.name}</span>
-                              <span className="text-neutral-500 text-sm">— {company.sector}</span>
-                            </div>
+                {/* Company Selection - only show when prompt requires a company */}
+                {requiresCompany ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="company" className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Target Company
+                    </Label>
+                    <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                      <SelectTrigger id="company" className="w-full h-11 text-base">
+                        <SelectValue placeholder="Select a company to research..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel className="text-red-600 dark:text-red-500 font-bold text-sm py-2 px-2 bg-red-50 dark:bg-red-950/50 -mx-1 mb-1 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-red-500" />
+                            PRIMARY COMPETITORS
+                          </SelectLabel>
+                          {COMPANIES.filter(c => c.primary).map(company => (
+                            <SelectItem key={company.name} value={company.name} className="py-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-neutral-900 dark:text-white">{company.name}</span>
+                                <span className="text-neutral-500 text-sm">— {company.sector}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="text-neutral-600 dark:text-neutral-400 font-bold text-sm py-2 px-2 bg-neutral-100 dark:bg-neutral-800 -mx-1 mb-1 mt-2">
+                            OTHER COMPETITORS
+                          </SelectLabel>
+                          {COMPANIES.filter(c => !c.primary).map(company => (
+                            <SelectItem key={company.name} value={company.name} className="py-2.5">
+                              <div className="flex items-center gap-2">
+                                <span>{company.name}</span>
+                                <span className="text-neutral-500 text-sm">— {company.sector}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="text-neutral-500 dark:text-neutral-500 font-bold text-sm py-2 px-2 bg-neutral-50 dark:bg-neutral-900 -mx-1 mb-1 mt-2">
+                            CUSTOM ENTRY
+                          </SelectLabel>
+                          <SelectItem value="__custom__">
+                            <span className="italic text-neutral-600 dark:text-neutral-400">Enter custom company...</span>
                           </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-neutral-600 dark:text-neutral-400 font-bold text-sm py-2 px-2 bg-neutral-100 dark:bg-neutral-800 -mx-1 mb-1 mt-2">
-                          OTHER COMPETITORS
-                        </SelectLabel>
-                        {COMPANIES.filter(c => !c.primary).map(company => (
-                          <SelectItem key={company.name} value={company.name} className="py-2.5">
-                            <div className="flex items-center gap-2">
-                              <span>{company.name}</span>
-                              <span className="text-neutral-500 text-sm">— {company.sector}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-neutral-500 dark:text-neutral-500 font-bold text-sm py-2 px-2 bg-neutral-50 dark:bg-neutral-900 -mx-1 mb-1 mt-2">
-                          CUSTOM ENTRY
-                        </SelectLabel>
-                        <SelectItem value="__custom__">
-                          <span className="italic text-neutral-600 dark:text-neutral-400">Enter custom company...</span>
-                        </SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {selectedCompany === "__custom__" && (
-                    <input
-                      type="text"
-                      placeholder="Enter company name..."
-                      value={customCompany}
-                      onChange={(e) => setCustomCompany(e.target.value)}
-                      className="mt-2 w-full px-4 py-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-base bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    />
-                  )}
-                </div>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {selectedCompany === "__custom__" && (
+                      <input
+                        type="text"
+                        placeholder="Enter company name..."
+                        value={customCompany}
+                        onChange={(e) => setCustomCompany(e.target.value)}
+                        className="mt-2 w-full px-4 py-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-base bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
+                    <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <span className="font-semibold">Multi-Company Analysis</span>
+                    </div>
+                    <p className="mt-1 text-sm text-purple-600 dark:text-purple-400">
+                      Companies are pre-defined in this research type. No company selection needed.
+                    </p>
+                  </div>
+                )}
 
                 {/* Prompt Selection */}
                 <div className="space-y-2">
@@ -526,6 +549,77 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {/* Research Depth Selection */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                    Research Depth
+                  </Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setResearchDepth("basic")}
+                      className={cn(
+                        "flex flex-col items-start gap-2 p-4 rounded-xl border-2 text-left transition-all",
+                        researchDepth === "basic"
+                          ? "border-red-500 bg-red-50 dark:bg-red-950/30 shadow-md shadow-red-500/10"
+                          : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-sm"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                          researchDepth === "basic"
+                            ? "border-red-500 bg-red-500"
+                            : "border-neutral-300 dark:border-neutral-600"
+                        )}>
+                          {researchDepth === "basic" && (
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <span className="font-semibold text-sm text-neutral-900 dark:text-white">
+                          Basic
+                        </span>
+                      </div>
+                      <p className="text-sm text-neutral-500 dark:text-neutral-400 pl-7">
+                        Quick overview with key insights. Faster results.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setResearchDepth("deep")}
+                      className={cn(
+                        "flex flex-col items-start gap-2 p-4 rounded-xl border-2 text-left transition-all",
+                        researchDepth === "deep"
+                          ? "border-red-500 bg-red-50 dark:bg-red-950/30 shadow-md shadow-red-500/10"
+                          : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-sm"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                          researchDepth === "deep"
+                            ? "border-red-500 bg-red-500"
+                            : "border-neutral-300 dark:border-neutral-600"
+                        )}>
+                          {researchDepth === "deep" && (
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <span className="font-semibold text-sm text-neutral-900 dark:text-white">
+                          Deep Research
+                        </span>
+                        <span className="px-1.5 py-0.5 text-xs font-bold bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded">
+                          AI-POWERED
+                        </span>
+                      </div>
+                      <p className="text-sm text-neutral-500 dark:text-neutral-400 pl-7">
+                        Multi-agent research with web search, iterative analysis, and comprehensive synthesis. Powered by LangChain.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Combined Report Option */}
                 {selectedProviders.length > 1 && (
                   <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 border border-red-200 dark:border-red-900/50 rounded-xl">
@@ -567,7 +661,7 @@ export default function Dashboard() {
                 {/* Submit Button */}
                 <Button
                   onClick={startResearch}
-                  disabled={loading || !selectedCompany || !selectedPrompt || selectedProviders.length === 0}
+                  disabled={loading || (requiresCompany && !selectedCompany) || !selectedPrompt || selectedProviders.length === 0}
                   className="w-full h-12 text-base font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all disabled:opacity-50 disabled:shadow-none"
                   size="lg"
                 >

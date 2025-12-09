@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import ReactMarkdown, { Components } from "react-markdown";
+import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion } from "framer-motion";
 import {
@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 
 interface Citation {
   url: string;
@@ -66,7 +68,35 @@ interface CuratedSource {
   category_name: string;
 }
 
-const API_BASE = "http://localhost:8000";
+/**
+ * Strip markdown code fences from content if present.
+ * Some AI responses wrap entire content in ```markdown...``` which breaks rendering.
+ */
+function stripMarkdownCodeFence(content: string): string {
+  if (!content) return content;
+
+  // Check if content starts with ```markdown or ``` and ends with ```
+  const trimmed = content.trim();
+  const codeBlockRegex = /^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/;
+  const match = trimmed.match(codeBlockRegex);
+
+  if (match) {
+    return match[1].trim();
+  }
+
+  // Also handle case where it starts with ``` but doesn't have proper closing
+  if (trimmed.startsWith('```markdown\n') || trimmed.startsWith('```md\n') || trimmed.startsWith('```\n')) {
+    let cleaned = trimmed.replace(/^```(?:markdown|md)?\n/, '');
+    if (cleaned.endsWith('\n```')) {
+      cleaned = cleaned.slice(0, -4);
+    } else if (cleaned.endsWith('```')) {
+      cleaned = cleaned.slice(0, -3);
+    }
+    return cleaned.trim();
+  }
+
+  return content;
+}
 
 const PROVIDER_NAMES: Record<string, string> = {
   xai: "xAI (Grok)",
@@ -76,134 +106,6 @@ const PROVIDER_NAMES: Record<string, string> = {
   perplexity: "Perplexity",
 };
 
-// Custom markdown components for professional rendering
-const markdownComponents: Components = {
-  h1: ({ children }) => (
-    <h1 className="text-2xl font-bold text-blue-900 dark:text-blue-100 border-b-2 border-blue-200 dark:border-blue-800 pb-3 mb-6 mt-8 first:mt-0">
-      {children}
-    </h1>
-  ),
-  h2: ({ children }) => (
-    <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mt-10 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-      {children}
-    </h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mt-8 mb-3">
-      {children}
-    </h3>
-  ),
-  h4: ({ children }) => (
-    <h4 className="text-base font-semibold text-gray-600 dark:text-gray-400 mt-6 mb-2 uppercase tracking-wide text-sm">
-      {children}
-    </h4>
-  ),
-  p: ({ children }) => (
-    <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4 text-base">
-      {children}
-    </p>
-  ),
-  ul: ({ children }) => (
-    <ul className="list-none space-y-2 mb-6 ml-0">
-      {children}
-    </ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="list-decimal list-outside space-y-2 mb-6 ml-6 text-gray-700 dark:text-gray-300">
-      {children}
-    </ol>
-  ),
-  li: ({ children }) => (
-    <li className="text-gray-700 dark:text-gray-300 leading-relaxed flex items-start gap-3">
-      <span className="text-blue-500 mt-1.5 flex-shrink-0">•</span>
-      <span className="flex-1">{children}</span>
-    </li>
-  ),
-  strong: ({ children }) => (
-    <strong className="font-semibold text-gray-900 dark:text-gray-100">
-      {children}
-    </strong>
-  ),
-  em: ({ children }) => (
-    <em className="italic text-gray-600 dark:text-gray-400">
-      {children}
-    </em>
-  ),
-  blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/50 py-3 px-5 my-6 rounded-r-lg">
-      <div className="text-gray-700 dark:text-gray-300 italic">
-        {children}
-      </div>
-    </blockquote>
-  ),
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-    >
-      {children}
-    </a>
-  ),
-  hr: () => (
-    <hr className="my-8 border-t-2 border-gray-200 dark:border-gray-700" />
-  ),
-  // Professional table rendering
-  table: ({ children }) => (
-    <div className="my-6 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-      <table className="w-full text-sm">
-        {children}
-      </table>
-    </div>
-  ),
-  thead: ({ children }) => (
-    <thead className="bg-gradient-to-r from-blue-900 to-blue-800 text-white">
-      {children}
-    </thead>
-  ),
-  tbody: ({ children }) => (
-    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-      {children}
-    </tbody>
-  ),
-  tr: ({ children }) => (
-    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors even:bg-gray-50/50 dark:even:bg-gray-800/30">
-      {children}
-    </tr>
-  ),
-  th: ({ children }) => (
-    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">
-      {children}
-    </th>
-  ),
-  td: ({ children }) => (
-    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 align-top">
-      {children}
-    </td>
-  ),
-  // Code blocks
-  code: ({ className, children }) => {
-    const isBlock = className?.includes('language-');
-    if (isBlock) {
-      return (
-        <code className="block bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm font-mono">
-          {children}
-        </code>
-      );
-    }
-    return (
-      <code className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-1.5 py-0.5 rounded text-sm font-mono">
-        {children}
-      </code>
-    );
-  },
-  pre: ({ children }) => (
-    <pre className="my-4 overflow-x-auto">
-      {children}
-    </pre>
-  ),
-};
 
 export default function ResultsPage() {
   const params = useParams();
@@ -215,6 +117,43 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [curatedSources, setCuratedSources] = useState<CuratedSource[]>([]);
   const [viewMode, setViewMode] = useState<"document" | "raw">("document");
+  const [generatingPptx, setGeneratingPptx] = useState(false);
+
+  const downloadSlideContent = useCallback(async (provider: string) => {
+    if (!jobId || generatingPptx) return;
+
+    setGeneratingPptx(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/research/${jobId}/presentation?provider=${provider}`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to generate slide content");
+      }
+
+      const text = await response.text();
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const filename = job?.company
+        ? `${job.company}_${job.prompt_name}_slides.txt`.replace(/\s+/g, "_")
+        : "slides.txt";
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Failed to download slide content:", err);
+      alert(err instanceof Error ? err.message : "Failed to generate slide content");
+    } finally {
+      setGeneratingPptx(false);
+    }
+  }, [jobId, job, generatingPptx]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -397,8 +336,24 @@ export default function ResultsPage() {
                 variant="outline"
                 size="sm"
                 className="gap-2"
+                disabled={generatingPptx}
+                onClick={() => downloadSlideContent("combined")}
+              >
+                {generatingPptx ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 13v-1m4 1v-3m4 3V8M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                  </svg>
+                )}
+                Slides
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
                 onClick={() => {
-                  navigator.clipboard.writeText(job.synthesized_report?.content || "");
+                  navigator.clipboard.writeText(stripMarkdownCodeFence(job.synthesized_report?.content || ""));
                 }}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -439,8 +394,24 @@ export default function ResultsPage() {
                 variant="outline"
                 size="sm"
                 className="gap-2"
+                disabled={generatingPptx}
+                onClick={() => downloadSlideContent(activeResult.provider)}
+              >
+                {generatingPptx ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 13v-1m4 1v-3m4 3V8M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                  </svg>
+                )}
+                Slides
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
                 onClick={() => {
-                  navigator.clipboard.writeText(activeResult.content || "");
+                  navigator.clipboard.writeText(stripMarkdownCodeFence(activeResult.content || ""));
                 }}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -590,14 +561,30 @@ export default function ResultsPage() {
                 </div>
               </div>
 
-              {/* Document Content */}
-              <div className="max-w-4xl mx-auto px-8 py-12">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={markdownComponents}
-                >
-                  {job.synthesized_report.content}
-                </ReactMarkdown>
+              {/* Document Content - Paper-like styling */}
+              <div className="bg-white dark:bg-gray-900">
+                <div className="max-w-4xl mx-auto px-12 py-16 min-h-[600px]">
+                  <article className="prose prose-lg max-w-none dark:prose-invert
+                    prose-headings:font-semibold
+                    prose-h1:text-3xl prose-h1:text-blue-900 prose-h1:dark:text-blue-100 prose-h1:border-b-2 prose-h1:border-blue-200 prose-h1:dark:border-blue-800 prose-h1:pb-4 prose-h1:mb-8 prose-h1:mt-8
+                    prose-h2:text-2xl prose-h2:text-gray-800 prose-h2:dark:text-gray-200 prose-h2:border-b prose-h2:border-gray-200 prose-h2:dark:border-gray-700 prose-h2:pb-2 prose-h2:mb-6 prose-h2:mt-10
+                    prose-h3:text-xl prose-h3:text-gray-700 prose-h3:dark:text-gray-300 prose-h3:mb-4 prose-h3:mt-8
+                    prose-h4:text-lg prose-h4:text-gray-600 prose-h4:dark:text-gray-400 prose-h4:mb-3 prose-h4:mt-6
+                    prose-p:text-gray-700 prose-p:dark:text-gray-300 prose-p:leading-7 prose-p:mb-4
+                    prose-li:text-gray-700 prose-li:dark:text-gray-300 prose-li:my-1
+                    prose-strong:text-gray-900 prose-strong:dark:text-gray-100
+                    prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:dark:bg-blue-950/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:not-italic
+                    prose-table:text-sm
+                    prose-th:bg-gray-100 prose-th:dark:bg-gray-800 prose-th:px-4 prose-th:py-3 prose-th:text-left prose-th:font-semibold
+                    prose-td:px-4 prose-td:py-3 prose-td:border-b prose-td:border-gray-200 prose-td:dark:border-gray-700
+                    prose-a:text-blue-600 prose-a:dark:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                    prose-code:bg-gray-100 prose-code:dark:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm
+                    prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {stripMarkdownCodeFence(job.synthesized_report.content)}
+                    </ReactMarkdown>
+                  </article>
+                </div>
               </div>
 
               {/* Document Footer */}
@@ -613,12 +600,12 @@ export default function ResultsPage() {
               <CardHeader>
                 <CardTitle>Raw Markdown - Combined Report</CardTitle>
                 <CardDescription>
-                  {job.synthesized_report.content.length.toLocaleString()} characters
+                  {stripMarkdownCodeFence(job.synthesized_report.content).length.toLocaleString()} characters
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <pre className="p-4 bg-gray-900 text-gray-100 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap">
-                  {job.synthesized_report.content}
+                  {stripMarkdownCodeFence(job.synthesized_report.content)}
                 </pre>
               </CardContent>
             </Card>
@@ -670,14 +657,30 @@ export default function ResultsPage() {
                 </div>
               </div>
 
-              {/* Document Content */}
-              <div className="max-w-4xl mx-auto px-8 py-12">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={markdownComponents}
-                >
-                  {activeResult.content}
-                </ReactMarkdown>
+              {/* Document Content - Paper-like styling */}
+              <div className="bg-white dark:bg-gray-900">
+                <div className="max-w-4xl mx-auto px-12 py-16 min-h-[600px]">
+                  <article className="prose prose-lg max-w-none dark:prose-invert
+                    prose-headings:font-semibold
+                    prose-h1:text-3xl prose-h1:text-blue-900 prose-h1:dark:text-blue-100 prose-h1:border-b-2 prose-h1:border-blue-200 prose-h1:dark:border-blue-800 prose-h1:pb-4 prose-h1:mb-8 prose-h1:mt-8
+                    prose-h2:text-2xl prose-h2:text-gray-800 prose-h2:dark:text-gray-200 prose-h2:border-b prose-h2:border-gray-200 prose-h2:dark:border-gray-700 prose-h2:pb-2 prose-h2:mb-6 prose-h2:mt-10
+                    prose-h3:text-xl prose-h3:text-gray-700 prose-h3:dark:text-gray-300 prose-h3:mb-4 prose-h3:mt-8
+                    prose-h4:text-lg prose-h4:text-gray-600 prose-h4:dark:text-gray-400 prose-h4:mb-3 prose-h4:mt-6
+                    prose-p:text-gray-700 prose-p:dark:text-gray-300 prose-p:leading-7 prose-p:mb-4
+                    prose-li:text-gray-700 prose-li:dark:text-gray-300 prose-li:my-1
+                    prose-strong:text-gray-900 prose-strong:dark:text-gray-100
+                    prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:dark:bg-blue-950/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:not-italic
+                    prose-table:text-sm
+                    prose-th:bg-gray-100 prose-th:dark:bg-gray-800 prose-th:px-4 prose-th:py-3 prose-th:text-left prose-th:font-semibold
+                    prose-td:px-4 prose-td:py-3 prose-td:border-b prose-td:border-gray-200 prose-td:dark:border-gray-700
+                    prose-a:text-blue-600 prose-a:dark:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                    prose-code:bg-gray-100 prose-code:dark:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm
+                    prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {stripMarkdownCodeFence(activeResult.content)}
+                    </ReactMarkdown>
+                  </article>
+                </div>
               </div>
 
               {/* Document Footer */}
@@ -694,12 +697,12 @@ export default function ResultsPage() {
               <CardHeader>
                 <CardTitle>Raw Markdown</CardTitle>
                 <CardDescription>
-                  {activeResult.content.length.toLocaleString()} characters
+                  {stripMarkdownCodeFence(activeResult.content).length.toLocaleString()} characters
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <pre className="p-4 bg-gray-900 text-gray-100 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap">
-                  {activeResult.content}
+                  {stripMarkdownCodeFence(activeResult.content)}
                 </pre>
               </CardContent>
             </Card>

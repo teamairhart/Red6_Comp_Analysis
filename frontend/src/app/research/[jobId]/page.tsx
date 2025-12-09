@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
 
 interface ProviderResult {
   provider: string;
@@ -34,7 +35,13 @@ interface ResearchJob {
   error?: string;
 }
 
-const API_BASE = "http://localhost:8000";
+const PROVIDER_NAMES: Record<string, string> = {
+  google: "Google (Gemini)",
+  perplexity: "Perplexity",
+  openai: "OpenAI (GPT-4)",
+  anthropic: "Anthropic (Claude)",
+  xai: "xAI (Grok)",
+};
 
 export default function ResearchJobPage() {
   const params = useParams();
@@ -48,43 +55,53 @@ export default function ResearchJobPage() {
   useEffect(() => {
     if (!jobId) return;
 
+    let isActive = true; // Prevent state updates after unmount
+    let shouldPoll = true; // Track if polling should continue
+
     const fetchJob = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/research/${jobId}`);
         if (!res.ok) {
           if (res.status === 404) {
-            setError("Research job not found");
+            if (isActive) setError("Research job not found");
           } else {
             throw new Error("Failed to fetch job status");
           }
           return;
         }
         const data = await res.json();
-        setJob(data);
-
-        // If job is completed, stop polling
-        if (data.status === "completed" || data.status === "failed") {
+        if (isActive) {
+          setJob(data);
           setLoading(false);
+
+          // Stop polling if job is done
+          if (data.status === "completed" || data.status === "failed") {
+            shouldPoll = false;
+          }
         }
       } catch (err) {
-        setError("Failed to load job status. Is the API running?");
-        setLoading(false);
+        if (isActive) {
+          setError("Failed to load job status. Is the API running?");
+          setLoading(false);
+        }
       }
     };
 
     // Initial fetch
     fetchJob();
-    setLoading(false);
 
     // Poll every 2 seconds while job is running
     const interval = setInterval(() => {
-      if (job?.status !== "completed" && job?.status !== "failed") {
+      if (shouldPoll) {
         fetchJob();
       }
     }, 2000);
 
-    return () => clearInterval(interval);
-  }, [jobId, job?.status]);
+    return () => {
+      isActive = false;
+      clearInterval(interval);
+    };
+  }, [jobId]); // Only depend on jobId, not job?.status
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -176,7 +193,7 @@ export default function ResearchJobPage() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">
-                  {result.provider === "xai" ? "xAI (Grok)" : "Google (Gemini)"}
+                  {PROVIDER_NAMES[result.provider] || result.provider}
                 </CardTitle>
                 <span
                   className={`inline-flex items-center gap-1.5 text-xs font-medium ${getStatusColor(result.status)}`}
@@ -227,7 +244,16 @@ export default function ResearchJobPage() {
             </div>
             <div>
               <dt className="text-muted-foreground">Mode</dt>
-              <dd>{job.mode === "deep" ? "Deep Research" : "Basic"}</dd>
+              <dd>
+                {job.mode === "deep" ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Deep Research</span>
+                    <span className="px-1.5 py-0.5 text-xs font-bold bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded">
+                      AI-POWERED
+                    </span>
+                  </span>
+                ) : "Basic"}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Started</dt>

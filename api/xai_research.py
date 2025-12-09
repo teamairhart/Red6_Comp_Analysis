@@ -1,28 +1,35 @@
 """
-xAI Grok Research Provider - Supports Grok 4 with DeepSearch via Agent Tools API.
+xAI Grok Research Provider - Supports Grok 4.1 with DeepSearch via Responses API.
 
 DeepSearch uses server-side agentic execution that:
 - Iteratively searches web and X (Twitter)
 - Fires up to 10 RAG loops per prompt
 - Pulls dozens of URLs and posts
+- Uses code execution for data analysis
 - Reasons about conflicting information
 - Returns comprehensive, cited responses
+
+The Responses API provides:
+- web_search: Real-time web search and page browsing
+- x_search: Search X posts, users, and threads
+- code_execution: Execute Python code for calculations
 
 xAI's API is OpenAI-compatible, so we use the OpenAI SDK with a different base URL.
 """
 from openai import OpenAI
 from datetime import datetime
 from typing import Optional
+import requests
 from .base_researcher import BaseResearcher, ResearchResult
 
 
 class XAIResearcher(BaseResearcher):
     """xAI Grok research provider with basic and DeepSearch modes."""
 
-    # Model configurations - Updated November 2025
-    # grok-4-fast is recommended for agentic tool use
+    # Model configurations - Updated December 2025
     BASIC_MODEL = "grok-4-0709"
-    DEEP_RESEARCH_MODEL = "grok-4-fast"  # Best for DeepSearch agentic loops
+    # grok-4.1-fast: Best for agentic tool use, state-of-the-art web/X search
+    DEEP_RESEARCH_MODEL = "grok-4.1-fast"
 
     # xAI API base URL
     BASE_URL = "https://api.x.ai/v1"
@@ -103,91 +110,109 @@ Provide well-structured analysis."""
 
     def deep_research(self, prompt: str, company: str) -> ResearchResult:
         """
-        Run Grok DeepSearch using enhanced search_parameters.
+        Run Grok DeepSearch using the Responses API with Agent Tools.
 
-        This provides comprehensive research by:
-        - Using forced search mode with maximum results
-        - Searching across web, news, and X sources
-        - Enabling citations for source tracking
-        - Using grok-4-fast for best agentic performance
+        This is the SAME DeepSearch capability as grok.com, providing:
+        - web_search: Real-time web search and page browsing
+        - x_search: Search X posts, users, and threads
+        - code_execution: Python execution for data analysis
+        - Iterative RAG loops (up to 10 per prompt)
 
-        Note: The Agent Tools API (web_search/x_search tools) is being deprecated
-        in favor of search_parameters. This implementation uses the stable API.
+        The model autonomously decides when and what to search.
         """
         try:
-            # Enhanced system prompt for deep research
-            system_prompt = f"""You are Grok, conducting comprehensive deep competitive intelligence research on {company}.
-
-Your task is to provide thorough, well-sourced analysis for defense technology competitive intelligence.
-
-Research Guidelines:
-1. Search the web extensively for current information, news, and official announcements
-2. Search X (Twitter) for recent discussions, announcements, and industry sentiment
-3. Cross-reference multiple sources to verify information
-4. Look for SEC filings, press releases, contract awards, and government announcements
-5. Search for industry analysis and trade publications
-6. Provide specific dates, numbers, and facts
-7. Cite every major claim with its source
-8. Distinguish between verified facts and speculation
-
-Synthesize findings into a comprehensive, well-cited report."""
-
-            research_prompt = f"""Conduct comprehensive competitive intelligence research on {company}:
-
-{prompt}
-
-Be thorough. Search multiple sources including web, news, and X. Verify claims. Cite everything."""
-
-            # Use search_parameters with maximum settings for deep research
-            # Note: max_search_results must be <30, sources format is list of strings
-            response = self.client.chat.completions.create(
+            # Use the Responses API endpoint for agentic deep research
+            # This mirrors the DeepSearch experience on grok.com
+            response = self.client.responses.create(
                 model=self.DEEP_RESEARCH_MODEL,
-                messages=[
+                input=[
                     {
-                        "role": "system",
-                        "content": system_prompt
+                        "role": "developer",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": f"""You are Grok, conducting comprehensive deep competitive intelligence research on {company} for defense technology analysis.
+
+Your goal is to produce a thorough, well-sourced intelligence report that covers:
+- Recent developments and news (last 30-90 days)
+- Financial data, contracts, and SEC filings
+- Strategic direction and competitive positioning
+- Technology capabilities and investments
+- Leadership and organizational changes
+- Industry sentiment and expert opinions
+
+Use web search extensively to find current information. Use X search to find industry discussions, announcements, and sentiment. Cross-reference claims across multiple sources. Be thorough and verify everything."""
+                            }
+                        ]
                     },
                     {
                         "role": "user",
-                        "content": research_prompt
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": f"""Conduct comprehensive competitive intelligence research on {company}:
+
+{prompt}
+
+Provide a detailed report with:
+1. Executive summary of key findings
+2. Detailed analysis organized by topic
+3. Specific dates, numbers, and citations
+4. Analysis of implications for competitive positioning
+5. Areas of uncertainty or conflicting information
+
+Search both the web and X to gather comprehensive information."""
+                            }
+                        ]
                     }
                 ],
-                extra_body={
-                    "search_parameters": {
-                        "mode": "on",  # Force search for deep research
-                        "return_citations": True,
-                        "max_search_results": 25  # Maximum is 30, use 25 for safety
-                    }
-                },
-                temperature=0.3,
-                max_tokens=16384  # Allow for longer deep research output
+                tools=[
+                    {"type": "web_search"},  # Real-time web search
+                    {"type": "x_search"}     # Search X posts and threads
+                ]
             )
 
-            # Extract response text
-            text = response.choices[0].message.content
+            # Extract text from the response
+            text = ""
+            if hasattr(response, 'output') and response.output:
+                for output_block in response.output:
+                    if hasattr(output_block, 'content'):
+                        for content_item in output_block.content:
+                            if hasattr(content_item, 'text'):
+                                text += content_item.text
 
-            # Extract citations from response
+            # Fallback to output_text
+            if not text and hasattr(response, 'output_text'):
+                text = response.output_text
+
+            # Extract citations from tool results
             citations = []
-
-            # Try model_extra first (where citations typically appear)
-            if hasattr(response, 'model_extra') and response.model_extra:
-                raw_citations = response.model_extra.get('citations', [])
-                for url in raw_citations:
-                    citations.append({
-                        "url": url,
-                        "title": url.split('//')[-1].split('/')[0]  # Domain as title
-                    })
-
-            # Also check choices for citations
-            if hasattr(response.choices[0], 'message'):
-                msg = response.choices[0].message
-                if hasattr(msg, 'citations') and msg.citations:
-                    for url in msg.citations:
-                        if not any(c['url'] == url for c in citations):
-                            citations.append({
-                                "url": url,
-                                "title": url.split('//')[-1].split('/')[0]
-                            })
+            seen_urls = set()
+            if hasattr(response, 'output') and response.output:
+                for output_block in response.output:
+                    # Check for web_search results
+                    if hasattr(output_block, 'type') and output_block.type in ['web_search_result', 'x_search_result']:
+                        if hasattr(output_block, 'results'):
+                            for result in output_block.results:
+                                url = getattr(result, 'url', None)
+                                if url and url not in seen_urls:
+                                    seen_urls.add(url)
+                                    citations.append({
+                                        "url": url,
+                                        "title": getattr(result, 'title', url.split('//')[-1].split('/')[0])
+                                    })
+                    # Check for annotations in content
+                    if hasattr(output_block, 'content'):
+                        for content_item in output_block.content:
+                            if hasattr(content_item, 'annotations'):
+                                for annotation in content_item.annotations:
+                                    url = getattr(annotation, 'url', None)
+                                    if url and url not in seen_urls:
+                                        seen_urls.add(url)
+                                        citations.append({
+                                            "url": url,
+                                            "title": getattr(annotation, 'title', url)
+                                        })
 
             return ResearchResult(
                 provider=self.provider_name,
@@ -196,15 +221,11 @@ Be thorough. Search multiple sources including web, news, and X. Verify claims. 
                 text=text,
                 citations=citations,
                 timestamp=datetime.utcnow(),
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
-                } if response.usage else None
+                usage=getattr(response, 'usage', None)
             )
 
         except Exception as e:
-            # If deep research fails, fall back to basic with enhanced settings
+            # If Responses API fails, fall back to search_parameters approach
             return self._deep_research_fallback(prompt, company, str(e))
 
     def _deep_research_fallback(self, prompt: str, company: str, original_error: str) -> ResearchResult:
