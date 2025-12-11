@@ -113,8 +113,6 @@ def _build_cron_trigger(config: ScheduleConfig) -> CronTrigger:
 def _execute_scheduled_research(schedule_id: str):
     """Execute a scheduled research job"""
     from services.research_service import get_research_service
-    from services.delta_service import run_delta_analysis, save_delta_report
-    from models.delta import Importance
 
     if schedule_id not in _schedules:
         logger.error(f"Schedule {schedule_id} not found")
@@ -160,29 +158,6 @@ def _execute_scheduled_research(schedule_id: str):
         execution.completed_at = datetime.utcnow()
         execution.job_id = save_info.get("output_dir", execution_id)
 
-        # Run delta analysis if enabled
-        if schedule.run_delta_analysis:
-            combined_content = []
-            for provider, result in results.items():
-                if result.error is None and result.text:
-                    combined_content.append(f"## {provider.upper()} Results\n\n{result.text}")
-
-            if combined_content:
-                full_content = "\n\n---\n\n".join(combined_content)
-                delta_report = run_delta_analysis(
-                    company=schedule.company,
-                    new_report_content=full_content,
-                    job_id=execution_id,
-                    prompt_id=schedule.prompt_id,
-                    lookback_days=90,
-                )
-                if delta_report:
-                    save_delta_report(delta_report)
-                    execution.delta_report_id = delta_report.id
-                    execution.critical_findings_count = len(
-                        [f for f in delta_report.findings if f.importance == Importance.CRITICAL]
-                    )
-
         # Update schedule
         schedule.last_run_at = datetime.utcnow()
         schedule.run_count += 1
@@ -200,16 +175,6 @@ def _execute_scheduled_research(schedule_id: str):
                 type="schedule_complete",
                 title=f"Research Complete: {schedule.name}",
                 message=f"Scheduled research for {schedule.company} completed successfully.",
-                schedule_id=schedule_id,
-                job_id=execution.job_id,
-            )
-
-        # Notify on critical findings
-        if schedule.notify_on_critical and execution.critical_findings_count > 0:
-            _create_notification(
-                type="critical_finding",
-                title=f"Critical Findings: {schedule.company}",
-                message=f"Found {execution.critical_findings_count} critical findings in scheduled research.",
                 schedule_id=schedule_id,
                 job_id=execution.job_id,
             )

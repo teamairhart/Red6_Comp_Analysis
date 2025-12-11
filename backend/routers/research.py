@@ -18,7 +18,6 @@ from services.source_service import (
     match_citations_to_sources,
     update_source_hit_counts,
 )
-from services.delta_service import run_delta_analysis, run_knowledge_base_delta, save_delta_report
 from services.synthesis_service import get_synthesis_service
 from services.presentation_service import get_presentation_service
 from datetime import datetime
@@ -456,33 +455,6 @@ def _run_research_sync(job_id: str):
         job.updated_at = datetime.utcnow()
 
         logger.info(f"Research job {job_id} completed successfully")
-
-        # Run knowledge base delta analysis (extracts entities & detects changes)
-        try:
-            # Combine all successful results for analysis
-            combined_content = []
-            for pr in job.results:
-                if pr.content:
-                    combined_content.append(f"## {pr.provider.upper()} Results\n\n{pr.content}")
-
-            if combined_content:
-                full_content = "\n\n---\n\n".join(combined_content)
-
-                # Use the new knowledge base approach
-                # This extracts entities, compares to the company's knowledge base,
-                # and returns changes as delta findings
-                delta_report = run_knowledge_base_delta(
-                    company=job.company,
-                    report_content=full_content,
-                    job_id=job_id,
-                    prompt_id=job.prompt_id,
-                )
-                if delta_report:
-                    save_delta_report(delta_report)
-                    job.delta_report_id = delta_report.id
-                    logger.info(f"Knowledge base delta complete for job {job_id}: {len(delta_report.findings)} changes detected")
-        except Exception as delta_err:
-            logger.warning(f"Knowledge base delta analysis failed for job {job_id}: {delta_err}")
 
         # Save completed job to disk
         _save_job_to_disk(job)

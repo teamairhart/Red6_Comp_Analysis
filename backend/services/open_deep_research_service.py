@@ -233,6 +233,17 @@ class OpenDeepResearchService:
             # Get model configuration for this provider
             config = self.get_model_config(provider, deep_mode)
 
+            # Citation instruction for inline references
+            citation_instruction = """
+
+## Citation Requirements
+
+When writing your report, use inline citation numbers in superscript format [1], [2], etc. to reference your sources. Place the citation number immediately after any claim, statistic, or piece of information that comes from a specific source. At the end of your report, include a numbered "Sources" section that matches the inline citation numbers.
+
+Example: "The company reported revenue of $5.2 billion in Q3 2024[1], representing a 15% year-over-year increase[2]."
+
+This allows readers to trace specific claims back to their sources."""
+
             # Build the research message
             if company:
                 research_message = f"""Conduct comprehensive competitive intelligence research on {company}.
@@ -247,9 +258,9 @@ Please provide:
 4. Strategic analysis and competitive implications
 5. Areas of uncertainty or conflicting information
 
-Be thorough and cite your sources."""
+Be thorough and cite your sources.{citation_instruction}"""
             else:
-                research_message = query
+                research_message = query + citation_instruction
 
             logger.info(f"Starting Open Deep Research for provider {provider}")
             logger.debug(f"Config: {config}")

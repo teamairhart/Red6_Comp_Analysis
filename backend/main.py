@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import prompts_router, research_router, reports_router, sources_router, delta_router, schedule_router, ticker_router
+from routers import prompts_router, research_router, reports_router, sources_router, schedule_router, ticker_router
 
 app = FastAPI(
     title="Competitive Intelligence API",
@@ -43,7 +43,6 @@ app.include_router(prompts_router)
 app.include_router(research_router)
 app.include_router(reports_router)
 app.include_router(sources_router)
-app.include_router(delta_router)
 app.include_router(schedule_router)
 app.include_router(ticker_router)
 

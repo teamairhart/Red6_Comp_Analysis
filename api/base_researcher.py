@@ -55,6 +55,17 @@ class BaseResearcher(ABC):
         """Run deep research query with web search."""
         pass
 
+    # Citation instruction to append to all prompts
+    CITATION_INSTRUCTION = """
+
+## Citation Requirements
+
+When writing your report, use inline citation numbers in superscript format [1], [2], etc. to reference your sources. Place the citation number immediately after any claim, statistic, or piece of information that comes from a specific source. At the end of your report, include a numbered "Sources" section that matches the inline citation numbers.
+
+Example: "The company reported revenue of $5.2 billion in Q3 2024[1], representing a 15% year-over-year increase[2]."
+
+This allows readers to trace specific claims back to their sources."""
+
     def research(self, prompt: str, company: str, mode: str = "basic") -> ResearchResult:
         """
         Run research with specified mode.
@@ -70,6 +81,9 @@ class BaseResearcher(ABC):
         # Inject company name into prompt
         full_prompt = prompt.replace("[COMPANY NAME]", company)
         full_prompt = full_prompt.replace("[COMPANY]", company)
+
+        # Add inline citation instruction
+        full_prompt += self.CITATION_INSTRUCTION
 
         if mode == "deep":
             return self.deep_research(full_prompt, company)

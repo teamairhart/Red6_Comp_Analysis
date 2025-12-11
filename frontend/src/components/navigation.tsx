@@ -11,7 +11,6 @@ import { API_BASE } from "@/lib/api";
 const navItems = [
   { href: "/", label: "Dashboard", icon: "dashboard" },
   { href: "/reports", label: "Reports", icon: "reports" },
-  { href: "/briefing", label: "Briefing", icon: "briefing" },
   { href: "/prompts", label: "Prompts", icon: "prompts" },
 ];
 
