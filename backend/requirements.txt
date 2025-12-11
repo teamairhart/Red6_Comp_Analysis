@@ -1,14 +1,35 @@
+# Red 6 Competitive Intelligence Backend
+# For Render.com deployment
+
+# Core Framework
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
 websockets>=12.0
 httpx>=0.26.0
+
+# AI/LLM Providers
+openai>=1.0.0
+anthropic>=0.18.0
+google-genai>=0.4.0
+
+# Document Generation
 python-docx>=1.1.0
 weasyprint>=60.0
 markdown>=3.5.0
 python-pptx>=0.6.21
-# LangGraph for research orchestration
+xlsxwriter>=3.1.0
+
+# Scheduling
+APScheduler>=3.10.0
+pytz>=2024.1
+
+# Utilities
+PyYAML>=6.0.0
+requests>=2.31.0
+
+# LangGraph for research orchestration (optional - for Deep mode)
 langgraph>=0.2.0
 langgraph-sdk>=0.2.0
 langchain-core>=0.3.0

@@ -1,0 +1,47 @@
+# Render Blueprint - Red 6 Competitive Intelligence Platform
+# Deploy with: Connect GitHub repo to Render and select this blueprint
+
+services:
+  # Backend API Service (FastAPI)
+  - type: web
+    name: red6-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: CORS_ORIGINS
+        sync: false  # Will be set after frontend deploys
+      # API Keys - Set these in Render Dashboard (keep secret!)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: PERPLEXITY_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+    healthCheckPath: /api/health
+
+  # Frontend Web Service (Next.js)
+  - type: web
+    name: red6-frontend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false  # Will be set to backend URL after it deploys
